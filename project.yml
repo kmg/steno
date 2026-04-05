@@ -38,6 +38,7 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Steno/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleDisplayName: "Steno"
         INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.productivity"
         CODE_SIGN_ENTITLEMENTS: Steno/Steno.entitlements
