@@ -40,14 +40,15 @@ final class RecordingManager: ObservableObject {
 
             // Always try system audio — silently skip if it fails
             systemAudioActive = false
+            let localMixer = self.mixer
+            let localBufferLock = self.bufferLock
             do {
                 systemCapture.bufferHandler = { [weak self] bufferList in
-                    guard let self else { return }
-                    if let samples = self.mixer.samplesFromBufferList(bufferList) {
-                        self.bufferLock.lock()
-                        self.systemSampleBuffer.append(contentsOf: samples)
-                        if !self.systemAudioReady { self.systemAudioReady = true }
-                        self.bufferLock.unlock()
+                    if let samples = localMixer.samplesFromBufferList(bufferList) {
+                        localBufferLock.lock()
+                        self?.systemSampleBuffer.append(contentsOf: samples)
+                        if self?.systemAudioReady == false { self?.systemAudioReady = true }
+                        localBufferLock.unlock()
                     }
                 }
                 try systemCapture.start()
@@ -59,50 +60,54 @@ final class RecordingManager: ObservableObject {
 
             let captureSystemAudio = self.systemAudioActive
 
+            let localWriter = self.writer
             try mic.start { [weak self] buffer, _ in
-                guard let self else { return }
-
                 streamer?.appendBuffer(buffer)
 
                 // Wait for system audio before writing, to avoid silence at start
-                if captureSystemAudio && !self.writerStarted {
-                    self.micCallbackCount += 1
-                    self.bufferLock.lock()
-                    let ready = self.systemAudioReady
-                    self.bufferLock.unlock()
-                    if !ready && self.micCallbackCount < 10 {
-                        return
+                if captureSystemAudio {
+                    guard let self else { return }
+                    if !self.writerStarted {
+                        self.micCallbackCount += 1
+                        localBufferLock.lock()
+                        let ready = self.systemAudioReady
+                        localBufferLock.unlock()
+                        if !ready && self.micCallbackCount < 10 {
+                            return
+                        }
+                        self.writerStarted = true
                     }
-                    self.writerStarted = true
-                }
 
-                if captureSystemAudio, let floatData = buffer.floatChannelData {
-                    let frameCount = Int(buffer.frameLength)
-                    let micSamples = Array(UnsafeBufferPointer(start: floatData[0], count: frameCount))
+                    if let floatData = buffer.floatChannelData {
+                        let frameCount = Int(buffer.frameLength)
+                        let micSamples = Array(UnsafeBufferPointer(start: floatData[0], count: frameCount))
 
-                    self.bufferLock.lock()
-                    let availableSystem = min(frameCount, self.systemSampleBuffer.count)
-                    let sysSamples: [Float]
-                    if availableSystem > 0 {
-                        sysSamples = Array(self.systemSampleBuffer.prefix(availableSystem))
-                        self.systemSampleBuffer.removeFirst(availableSystem)
-                    } else {
-                        sysSamples = []
-                    }
-                    self.bufferLock.unlock()
-
-                    if !sysSamples.isEmpty {
-                        let mixed = self.mixer.mix(micSamples: micSamples, systemSamples: sysSamples)
-                        if let mixedBuffer = self.floatsToBuffer(mixed, format: buffer.format) {
-                            self.writer.append(buffer: mixedBuffer)
+                        localBufferLock.lock()
+                        let availableSystem = min(frameCount, self.systemSampleBuffer.count)
+                        let sysSamples: [Float]
+                        if availableSystem > 0 {
+                            sysSamples = Array(self.systemSampleBuffer.prefix(availableSystem))
+                            self.systemSampleBuffer.removeFirst(availableSystem)
                         } else {
-                            self.writer.append(buffer: buffer)
+                            sysSamples = []
+                        }
+                        localBufferLock.unlock()
+
+                        if !sysSamples.isEmpty {
+                            let mixed = localMixer.mix(micSamples: micSamples, systemSamples: sysSamples)
+                            if let mixedBuffer = self.floatsToBuffer(mixed, format: buffer.format) {
+                                localWriter.append(buffer: mixedBuffer)
+                            } else {
+                                localWriter.append(buffer: buffer)
+                            }
+                        } else {
+                            localWriter.append(buffer: buffer)
                         }
                     } else {
-                        self.writer.append(buffer: buffer)
+                        localWriter.append(buffer: buffer)
                     }
                 } else {
-                    self.writer.append(buffer: buffer)
+                    localWriter.append(buffer: buffer)
                 }
             }
 
