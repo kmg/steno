@@ -6,34 +6,106 @@ import os
 
 /// Accumulates PCM audio samples and periodically transcribes them with WhisperKit.
 /// Produces confirmed and unconfirmed segments for live display.
+///
+/// Thread safety: `appendBuffer` is called from the audio IO thread,
+/// while `start`/`stop`/`allSegments` run on async or main threads.
+/// All mutable state is behind `lock`. Locked access is wrapped in
+/// synchronous helpers so NSLock is never called from async context.
 final class StreamingTranscriber: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.kmganesh.steno", category: "StreamingTranscriber")
+    private let lock = NSLock()
 
-    private var audioSamples: [Float] = []
-    private var lastTranscribedCount: Int = 0
-    private var isRunning = false
+    // All mutable state — access only via locked helpers
+    private var _audioSamples: [Float] = []
+    private var _lastTranscribedCount: Int = 0
+    private var _isRunning = false
+    private var _confirmedSegments: [TranscriptionSegment] = []
+    private var _unconfirmedSegments: [TranscriptionSegment] = []
+    private var _lastConfirmedEnd: Float = 0
 
     private let whisperKit: WhisperKit
     private let sampleRate: Double
     private let minBufferSeconds: Float = 1.5
-
-    /// Segments confirmed by multiple transcription passes.
-    private(set) var confirmedSegments: [TranscriptionSegment] = []
-    /// Segments from the most recent pass, not yet confirmed.
-    private(set) var unconfirmedSegments: [TranscriptionSegment] = []
-
-    private var lastConfirmedEnd: Float = 0
     private let requiredConfirmations = 2
 
-    var onSegmentsUpdated: (([TranscriptionSegment], [TranscriptionSegment]) -> Void)?
+    var onSegmentsUpdated: (@Sendable ([TranscriptionSegment], [TranscriptionSegment]) -> Void)?
 
     init(whisperKit: WhisperKit, sampleRate: Double) {
         self.whisperKit = whisperKit
         self.sampleRate = sampleRate
     }
 
+    // MARK: - Locked state accessors (synchronous, safe to call from anywhere)
+
+    private func resetState() {
+        lock.lock()
+        _isRunning = true
+        _confirmedSegments = []
+        _unconfirmedSegments = []
+        _audioSamples = []
+        _lastTranscribedCount = 0
+        _lastConfirmedEnd = 0
+        lock.unlock()
+    }
+
+    private var isRunning: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _isRunning
+    }
+
+    private func appendSamples(_ samples: [Float]) {
+        lock.lock()
+        _audioSamples.append(contentsOf: samples)
+        lock.unlock()
+    }
+
+    private func snapshotForTranscription() -> (sampleCount: Int, lastCount: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (_audioSamples.count, _lastTranscribedCount)
+    }
+
+    private func copySamplesForTranscription() -> (samples: [Float], clipStart: Float) {
+        lock.lock()
+        _lastTranscribedCount = _audioSamples.count
+        let samples = Array(_audioSamples)
+        let clipStart = _lastConfirmedEnd
+        lock.unlock()
+        return (samples, clipStart)
+    }
+
+    private func updateSegments(from segments: [TranscriptionSegment]) -> ([TranscriptionSegment], [TranscriptionSegment]) {
+        lock.lock()
+        if segments.count > requiredConfirmations {
+            let toConfirm = Array(segments.prefix(segments.count - requiredConfirmations))
+            let remaining = Array(segments.suffix(requiredConfirmations))
+
+            if let lastConfirmed = toConfirm.last, lastConfirmed.end > _lastConfirmedEnd {
+                _lastConfirmedEnd = lastConfirmed.end
+
+                for seg in toConfirm {
+                    if !_confirmedSegments.contains(where: { $0.id == seg.id && $0.start == seg.start }) {
+                        _confirmedSegments.append(seg)
+                    }
+                }
+            }
+
+            _unconfirmedSegments = remaining
+        } else {
+            _unconfirmedSegments = segments
+        }
+
+        let confirmed = _confirmedSegments
+        let unconfirmed = _unconfirmedSegments
+        lock.unlock()
+        return (confirmed, unconfirmed)
+    }
+
+    // MARK: - Public API
+
     /// Append PCM samples from the microphone tap.
-    /// Converts to 16kHz mono Float if needed.
+    /// Called on the audio IO thread — must not touch actor-isolated state.
     func appendBuffer(_ buffer: AVAudioPCMBuffer) {
         guard let floatData = buffer.floatChannelData else { return }
         let frameCount = Int(buffer.frameLength)
@@ -52,11 +124,11 @@ final class StreamingTranscriber: @unchecked Sendable {
 
         // Resample to 16kHz if needed
         let sourceSR = buffer.format.sampleRate
+        let samplesToAppend: [Float]
         if abs(sourceSR - 16000) > 1 {
             let ratio = 16000.0 / sourceSR
             let outputCount = Int(Double(frameCount) * ratio)
             var resampled = [Float](repeating: 0, count: outputCount)
-            // Simple linear interpolation resample
             for i in 0..<outputCount {
                 let srcIdx = Double(i) / ratio
                 let lo = Int(srcIdx)
@@ -64,25 +136,22 @@ final class StreamingTranscriber: @unchecked Sendable {
                 let frac = Float(srcIdx - Double(lo))
                 resampled[i] = monoSamples[lo] * (1 - frac) + monoSamples[hi] * frac
             }
-            audioSamples.append(contentsOf: resampled)
+            samplesToAppend = resampled
         } else {
-            audioSamples.append(contentsOf: monoSamples)
+            samplesToAppend = monoSamples
         }
+
+        appendSamples(samplesToAppend)
     }
 
     /// Start the transcription loop. Runs until stop() is called.
     func start() async {
-        isRunning = true
-        confirmedSegments = []
-        unconfirmedSegments = []
-        audioSamples = []
-        lastTranscribedCount = 0
-        lastConfirmedEnd = 0
+        resetState()
 
         while isRunning {
             do {
                 try await transcribeCurrentBuffer()
-                try await Task.sleep(nanoseconds: 200_000_000) // 200ms between attempts
+                try await Task.sleep(nanoseconds: 200_000_000)
             } catch {
                 if isRunning {
                     logger.error("Streaming transcription error: \(error)")
@@ -93,29 +162,32 @@ final class StreamingTranscriber: @unchecked Sendable {
     }
 
     func stop() {
-        isRunning = false
+        lock.lock()
+        _isRunning = false
+        lock.unlock()
     }
 
     /// Get all segments (confirmed + unconfirmed) for final output.
     func allSegments() -> [TranscriptionSegment] {
-        return confirmedSegments + unconfirmedSegments
+        lock.lock()
+        let result = _confirmedSegments + _unconfirmedSegments
+        lock.unlock()
+        return result
     }
 
     // MARK: - Private
 
     private func transcribeCurrentBuffer() async throws {
-        let currentCount = audioSamples.count
-        let newSamples = currentCount - lastTranscribedCount
-        let newSeconds = Float(newSamples) / 16000.0
+        let (currentCount, lastCount) = snapshotForTranscription()
 
+        let newSamples = currentCount - lastCount
+        let newSeconds = Float(newSamples) / 16000.0
         guard newSeconds >= minBufferSeconds else { return }
 
-        lastTranscribedCount = currentCount
-
-        let samples = Array(audioSamples)
+        let (samples, clipStart) = copySamplesForTranscription()
 
         var options = DecodingOptions(wordTimestamps: true)
-        options.clipTimestamps = [lastConfirmedEnd]
+        options.clipTimestamps = [clipStart]
 
         let results: [TranscriptionResult] = try await whisperKit.transcribe(
             audioArray: samples,
@@ -123,28 +195,8 @@ final class StreamingTranscriber: @unchecked Sendable {
         )
 
         guard let result = results.first else { return }
-        let segments = result.segments
 
-        // Confirmation logic: segments seen in multiple passes get confirmed
-        if segments.count > requiredConfirmations {
-            let toConfirm = Array(segments.prefix(segments.count - requiredConfirmations))
-            let remaining = Array(segments.suffix(requiredConfirmations))
-
-            if let lastConfirmed = toConfirm.last, lastConfirmed.end > lastConfirmedEnd {
-                lastConfirmedEnd = lastConfirmed.end
-
-                for seg in toConfirm {
-                    if !confirmedSegments.contains(where: { $0.id == seg.id && $0.start == seg.start }) {
-                        confirmedSegments.append(seg)
-                    }
-                }
-            }
-
-            unconfirmedSegments = remaining
-        } else {
-            unconfirmedSegments = segments
-        }
-
-        onSegmentsUpdated?(confirmedSegments, unconfirmedSegments)
+        let (confirmed, unconfirmed) = updateSegments(from: result.segments)
+        onSegmentsUpdated?(confirmed, unconfirmed)
     }
 }

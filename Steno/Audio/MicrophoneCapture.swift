@@ -1,15 +1,26 @@
 import AVFoundation
 import os
 
-final class MicrophoneCapture {
+final class MicrophoneCapture: @unchecked Sendable {
     private let engine = AVAudioEngine()
     private let logger = Logger(subsystem: "com.kmganesh.steno", category: "MicrophoneCapture")
 
     private(set) var isCapturing = false
     private(set) var inputFormat: AVAudioFormat?
 
+    /// Stored handler for use with RecordingPipeline
+    var bufferHandler: (@Sendable (AVAudioPCMBuffer) -> Void)?
+
+    /// Start using stored bufferHandler
+    func startWithHandler() throws {
+        guard let handler = bufferHandler else {
+            throw CaptureError.invalidFormat
+        }
+        try start { buffer, _ in handler(buffer) }
+    }
+
     /// Start capturing microphone audio. Calls handler on the audio thread with PCM buffers.
-    func start(bufferHandler: @escaping (AVAudioPCMBuffer, AVAudioTime) -> Void) throws {
+    func start(bufferHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void) throws {
         let inputNode = engine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
 

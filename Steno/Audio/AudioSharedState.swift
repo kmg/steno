@@ -34,15 +34,25 @@ final class AudioSharedState: @unchecked Sendable {
         return result
     }
 
-    var callbackCount = 0
-    var writerStarted = false
+    private var _callbackCount = 0
+    private var _writerStarted = false
+
+    var callbackCount: Int {
+        get { lock.lock(); defer { lock.unlock() }; return _callbackCount }
+        set { lock.lock(); _callbackCount = newValue; lock.unlock() }
+    }
+
+    var writerStarted: Bool {
+        get { lock.lock(); defer { lock.unlock() }; return _writerStarted }
+        set { lock.lock(); _writerStarted = newValue; lock.unlock() }
+    }
 
     func reset() {
         lock.lock()
         _systemSamples = []
         _ready = false
+        _callbackCount = 0
+        _writerStarted = false
         lock.unlock()
-        callbackCount = 0
-        writerStarted = false
     }
 }

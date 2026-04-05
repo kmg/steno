@@ -1,6 +1,6 @@
 import Foundation
 import AVFoundation
-import Accelerate
+import WhisperKit
 import os
 
 @MainActor
@@ -10,10 +10,7 @@ final class RecordingManager: ObservableObject {
     @Published var error: String?
     @Published private(set) var systemAudioActive = false
 
-    private let mic = MicrophoneCapture()
-    private let systemCapture = SystemAudioCapture()
-    private let mixer = AudioMixer()
-    private let writer = AudioFileWriter()
+    private let pipeline = RecordingPipeline()
     private let logger = Logger(subsystem: "com.kmganesh.steno", category: "RecordingManager")
 
     private var timer: Timer?
@@ -21,8 +18,6 @@ final class RecordingManager: ObservableObject {
     private(set) var lastSession: Session?
     private var streamingTranscriber: StreamingTranscriber?
     private var streamingTask: Task<Void, Never>?
-
-    private let sharedState = AudioSharedState()
 
     func startRecording(sessionStore: SessionStore, transcriptionEngine: TranscriptionEngine, diarizationManager: DiarizationManager) {
         guard !isRecording else { return }
@@ -34,69 +29,17 @@ final class RecordingManager: ObservableObject {
             let streamer = transcriptionEngine.makeStreamingTranscriber(sampleRate: 16000)
             self.streamingTranscriber = streamer
 
-            // Always try system audio — silently skip if it fails
-            systemAudioActive = false
-            let localMixer = self.mixer
-            let state = self.sharedState
-            do {
-                systemCapture.bufferHandler = { bufferList in
-                    if let samples = localMixer.samplesFromBufferList(bufferList) {
-                        state.appendSystemSamples(samples)
+            try pipeline.start(
+                audioURL: audioURL,
+                streamer: streamer,
+                onSegmentsUpdated: { [weak transcriptionEngine] confirmed, unconfirmed in
+                    Task { @MainActor in
+                        transcriptionEngine?.updateLiveSegments(confirmed: confirmed, unconfirmed: unconfirmed)
                     }
                 }
-                try systemCapture.start()
-                systemAudioActive = true
-                logger.info("System audio capture active")
-            } catch {
-                logger.info("System audio not available: \(error.localizedDescription)")
-            }
+            )
 
-            let captureSystemAudio = self.systemAudioActive
-
-            let localWriter = self.writer
-            let toBuffer = self.floatsToBuffer
-            try mic.start { buffer, _ in
-                streamer?.appendBuffer(buffer)
-
-                if captureSystemAudio {
-                    // Wait for system audio before writing
-                    if !state.writerStarted {
-                        state.callbackCount += 1
-                        if !state.isReady && state.callbackCount < 10 {
-                            return
-                        }
-                        state.writerStarted = true
-                    }
-
-                    if let floatData = buffer.floatChannelData {
-                        let frameCount = Int(buffer.frameLength)
-                        let micSamples = Array(UnsafeBufferPointer(start: floatData[0], count: frameCount))
-                        let sysSamples = state.consumeSystemSamples(count: frameCount)
-
-                        if !sysSamples.isEmpty {
-                            let mixed = localMixer.mix(micSamples: micSamples, systemSamples: sysSamples)
-                            if let mixedBuffer = toBuffer(mixed, buffer.format) {
-                                localWriter.append(buffer: mixedBuffer)
-                            } else {
-                                localWriter.append(buffer: buffer)
-                            }
-                        } else {
-                            localWriter.append(buffer: buffer)
-                        }
-                    } else {
-                        localWriter.append(buffer: buffer)
-                    }
-                } else {
-                    localWriter.append(buffer: buffer)
-                }
-            }
-
-            guard let format = mic.inputFormat else {
-                throw MicrophoneCapture.CaptureError.invalidFormat
-            }
-
-            try writer.start(outputURL: audioURL, sourceFormat: format)
-
+            systemAudioActive = pipeline.systemAudioActive
             isRecording = true
             recordingStart = Date()
             lastSession = session
@@ -105,11 +48,6 @@ final class RecordingManager: ObservableObject {
 
             transcriptionEngine.startStreaming()
             if let streamer {
-                streamer.onSegmentsUpdated = { [weak transcriptionEngine] confirmed, unconfirmed in
-                    Task { @MainActor in
-                        transcriptionEngine?.updateLiveSegments(confirmed: confirmed, unconfirmed: unconfirmed)
-                    }
-                }
                 streamingTask = Task.detached {
                     await streamer.start()
                 }
@@ -118,8 +56,7 @@ final class RecordingManager: ObservableObject {
             logger.info("Recording started: \(session.id), systemAudio: \(self.systemAudioActive)")
 
         } catch {
-            mic.stop()
-            systemCapture.stop()
+            pipeline.stop()
             self.error = error.localizedDescription
             logger.error("Failed to start recording: \(error)")
         }
@@ -132,9 +69,7 @@ final class RecordingManager: ObservableObject {
         streamingTask?.cancel()
         let allSegments = streamingTranscriber?.allSegments() ?? []
 
-        mic.stop()
-        systemCapture.stop()
-        writer.finish()
+        pipeline.stop()
         stopTimer()
 
         let duration = elapsedTime
@@ -154,27 +89,8 @@ final class RecordingManager: ObservableObject {
         streamingTranscriber = nil
         streamingTask = nil
         systemAudioActive = false
-        sharedState.reset()
 
         return (session, duration)
-    }
-
-    // MARK: - Helpers
-
-    nonisolated private func floatsToBuffer(_ floats: [Float], format: AVAudioFormat) -> AVAudioPCMBuffer? {
-        let frameCount = AVAudioFrameCount(floats.count)
-        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else { return nil }
-        buffer.frameLength = frameCount
-
-        guard let channelData = buffer.floatChannelData else { return nil }
-        let channels = Int(format.channelCount)
-
-        for ch in 0..<channels {
-            floats.withUnsafeBufferPointer { ptr in
-                channelData[ch].initialize(from: ptr.baseAddress!, count: Int(frameCount))
-            }
-        }
-        return buffer
     }
 
     // MARK: - Timer

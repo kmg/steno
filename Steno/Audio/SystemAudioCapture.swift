@@ -4,7 +4,7 @@ import os
 
 /// Captures system audio using Core Audio Taps (macOS 14.2+).
 /// Uses a global stereo tap to capture all system audio output.
-final class SystemAudioCapture {
+final class SystemAudioCapture: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.kmganesh.steno", category: "SystemAudioCapture")
 
     private var tapID: AudioObjectID = 0
@@ -89,19 +89,21 @@ final class SystemAudioCapture {
         logger.info("Capture format: \(streamFormat.mSampleRate)Hz, \(streamFormat.mChannelsPerFrame)ch")
 
         // 5. Create IO proc for receiving audio
+        // Capture handler directly — avoids accessing `self` on the IO thread
+        let handler = bufferHandler
         var procID: AudioDeviceIOProcID?
         let ioStatus = AudioDeviceCreateIOProcIDWithBlock(
             &procID,
             aggregateID,
             nil
-        ) { [weak self] (
+        ) { (
             _: UnsafePointer<AudioTimeStamp>,
             inputData: UnsafePointer<AudioBufferList>,
             _: UnsafePointer<AudioTimeStamp>,
             _: UnsafeMutablePointer<AudioBufferList>,
             _: UnsafePointer<AudioTimeStamp>
         ) in
-            self?.bufferHandler?(inputData)
+            handler?(inputData)
         }
 
         guard ioStatus == noErr, let procID else {

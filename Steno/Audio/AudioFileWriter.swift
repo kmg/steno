@@ -3,10 +3,20 @@ import os
 
 /// Writes microphone PCM buffers to an AAC .m4a file.
 /// Uses AVAudioFile for reliable buffer-to-file writing.
+///
+/// Thread safety: `append` is called from the audio IO thread,
+/// `start`/`finish` from the main thread. Lock protects `audioFile`.
 final class AudioFileWriter: @unchecked Sendable {
+    private let lock = NSLock()
     private var audioFile: AVAudioFile?
     private let logger = Logger(subsystem: "com.kmganesh.steno", category: "AudioFileWriter")
-    private(set) var isWriting = false
+    private var _isWriting = false
+
+    var isWriting: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _isWriting
+    }
 
     /// Start writing audio to the given file URL.
     func start(outputURL: URL, sourceFormat: AVAudioFormat) throws {
@@ -17,34 +27,48 @@ final class AudioFileWriter: @unchecked Sendable {
             AVEncoderBitRateKey: 128_000
         ]
 
-        audioFile = try AVAudioFile(
+        let file = try AVAudioFile(
             forWriting: outputURL,
             settings: settings,
             commonFormat: sourceFormat.commonFormat,
             interleaved: sourceFormat.isInterleaved
         )
 
-        isWriting = true
+        lock.lock()
+        audioFile = file
+        _isWriting = true
+        lock.unlock()
+
         logger.info("Audio writer started: \(outputURL.lastPathComponent), format: \(sourceFormat.sampleRate)Hz \(sourceFormat.channelCount)ch")
     }
 
     /// Append a PCM buffer. Call from the audio tap callback.
     func append(buffer: AVAudioPCMBuffer) {
-        guard isWriting, let file = audioFile else { return }
         guard buffer.frameLength > 0 else { return }
 
+        lock.lock()
+        guard _isWriting, let file = audioFile else {
+            lock.unlock()
+            return
+        }
         do {
             try file.write(from: buffer)
         } catch {
             logger.error("Failed to write audio buffer: \(error)")
         }
+        lock.unlock()
     }
 
     /// Finish writing.
     func finish() {
-        guard isWriting else { return }
-        audioFile = nil // closing the file finalizes it
-        isWriting = false
+        lock.lock()
+        guard _isWriting else {
+            lock.unlock()
+            return
+        }
+        audioFile = nil
+        _isWriting = false
+        lock.unlock()
         logger.info("Audio writer finished")
     }
 
