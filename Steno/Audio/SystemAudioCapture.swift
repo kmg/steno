@@ -15,7 +15,7 @@ final class SystemAudioCapture {
     private(set) var isCapturing = false
     private(set) var captureFormat: AVAudioFormat?
 
-    var bufferHandler: ((UnsafePointer<AudioBufferList>) -> Void)?
+    var bufferHandler: (@Sendable (UnsafePointer<AudioBufferList>) -> Void)?
 
     /// Start capturing all system audio.
     func start() throws {
