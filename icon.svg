@@ -1,22 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <!-- White background -->
-  <rect width="1024" height="1024" fill="#FFFFFF"/>
+  <!-- Coral background -->
+  <rect width="1024" height="1024" fill="#F06858"/>
 
-  <!-- Waveform bars (left side) - varying heights, centered vertically -->
-  <rect x="200" y="410" width="28" height="204" rx="14" fill="#2D2D2D"/>
-  <rect x="252" y="340" width="28" height="344" rx="14" fill="#2D2D2D"/>
-  <rect x="304" y="290" width="28" height="444" rx="14" fill="#2D2D2D"/>
-  <rect x="356" y="360" width="28" height="304" rx="14" fill="#2D2D2D"/>
-  <rect x="408" y="400" width="28" height="224" rx="14" fill="#2D2D2D"/>
+  <g transform="translate(72, 148) scale(1.5)">
+    <!-- Waveform bars -->
+    <rect x="42" y="248" width="36" height="152" rx="18" fill="#FFFFFF"/>
+    <rect x="98" y="178" width="36" height="292" rx="18" fill="#FFFFFF"/>
+    <rect x="154" y="118" width="36" height="412" rx="18" fill="#FFFFFF"/>
+    <rect x="210" y="158" width="36" height="332" rx="18" fill="#FFFFFF"/>
+    <rect x="266" y="198" width="36" height="252" rx="18" fill="#FFFFFF"/>
 
-  <!-- Transition zone - bars getting shorter, morphing into lines -->
-  <rect x="470" y="430" width="28" height="164" rx="14" fill="#2D2D2D" opacity="0.7"/>
-  <rect x="522" y="460" width="32" height="104" rx="14" fill="#2D2D2D" opacity="0.4"/>
-
-  <!-- Text lines (right side) - horizontal, staggered lengths -->
-  <rect x="580" y="380" width="244" height="16" rx="8" fill="#2D2D2D"/>
-  <rect x="580" y="430" width="200" height="16" rx="8" fill="#2D2D2D"/>
-  <rect x="580" y="480" width="224" height="16" rx="8" fill="#2D2D2D"/>
-  <rect x="580" y="530" width="168" height="16" rx="8" fill="#2D2D2D"/>
-  <rect x="580" y="580" width="210" height="16" rx="8" fill="#2D2D2D"/>
+    <!-- Text lines - justified, tight to waveform -->
+    <rect x="330" y="168" width="260" height="22" rx="11" fill="#FFFFFF"/>
+    <rect x="330" y="226" width="260" height="22" rx="11" fill="#FFFFFF"/>
+    <rect x="330" y="284" width="260" height="22" rx="11" fill="#FFFFFF"/>
+    <rect x="330" y="342" width="260" height="22" rx="11" fill="#FFFFFF"/>
+    <rect x="330" y="400" width="260" height="22" rx="11" fill="#FFFFFF"/>
+    <rect x="330" y="458" width="170" height="22" rx="11" fill="#FFFFFF"/>
+  </g>
 </svg>
