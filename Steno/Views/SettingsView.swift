@@ -5,17 +5,18 @@ import AVFoundation
 struct SettingsView: View {
     @EnvironmentObject var transcriptionEngine: TranscriptionEngine
 
-    @AppStorage("defaultModel") private var defaultModel = "large-v3-turbo"
+    @AppStorage("defaultModel") private var defaultModel = "large-v3_turbo"
     @AppStorage("customModelPath") private var customModelPath = ""
 
     @State private var micPermission: AVAudioApplication.recordPermission = .undetermined
-    @State private var screenRecordingGranted = false
+    @State private var systemAudioGranted = false
 
     private let availableModels = [
-        ("tiny", "Tiny (~39MB)", "Fastest, lowest quality"),
-        ("small", "Small (~216MB)", "Fast, good quality"),
-        ("large-v3-turbo", "Large v3 Turbo (~600MB)", "Recommended — best quality/speed"),
-        ("custom", "Custom Model", "Load from local folder"),
+        ("tiny", "Tiny (39MB)", "Quick test — gets the gist, misses details"),
+        ("small", "Small (216MB)", "Casual notes — good for clear 1-on-1 audio"),
+        ("large-v3_turbo", "Large Turbo (600MB)", "Recommended — handles accents, crosstalk, background noise"),
+        ("large-v3", "Large (1.5GB)", "Maximum accuracy — slower, best for difficult audio"),
+        ("custom", "Custom Model", "Load your own fine-tuned model from disk"),
     ]
 
     var body: some View {
@@ -71,19 +72,23 @@ struct SettingsView: View {
                     Label("Microphone", systemImage: "mic.fill")
                     Spacer()
                     permissionBadge(granted: micPermission == .granted)
+                    Button("Open Settings") {
+                        openPrivacySettings("Microphone")
+                    }
+                    .controlSize(.small)
                 }
 
                 HStack {
-                    Label("Screen Recording", systemImage: "tv")
+                    Label("System Audio", systemImage: "speaker.wave.2.fill")
                     Spacer()
-                    permissionBadge(granted: screenRecordingGranted)
+                    permissionBadge(granted: systemAudioGranted)
                     Button("Open Settings") {
                         openPrivacySettings("ScreenCapture")
                     }
                     .controlSize(.small)
                 }
 
-                Text("Microphone is prompted automatically. Screen Recording (for system audio) must be granted in System Settings → Privacy & Security.")
+                Text("Both permissions are requested when you start recording. If denied, grant them in System Settings → Privacy & Security.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -165,7 +170,7 @@ struct SettingsView: View {
 
     private func refreshPermissions() {
         micPermission = AVAudioApplication.shared.recordPermission
-        screenRecordingGranted = checkScreenRecordingPermission()
+        systemAudioGranted = checkScreenRecordingPermission()
     }
 
     private func checkScreenRecordingPermission() -> Bool {

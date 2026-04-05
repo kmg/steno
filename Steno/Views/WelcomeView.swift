@@ -3,15 +3,15 @@ import AVFoundation
 
 struct WelcomeView: View {
     @EnvironmentObject var transcriptionEngine: TranscriptionEngine
-    @AppStorage("defaultModel") private var defaultModel = "large-v3-turbo"
+    @AppStorage("defaultModel") private var defaultModel = "large-v3_turbo"
     @Binding var hasCompletedSetup: Bool
 
-    @State private var selectedModel = "large-v3-turbo"
+    @State private var selectedModel = "large-v3_turbo"
 
     private let models = [
-        ("large-v3-turbo", "Large v3 Turbo", "~600MB — Best quality/speed balance", true),
-        ("small", "Small", "~216MB — Faster, good quality", false),
-        ("tiny", "Tiny", "~39MB — Fastest, lowest quality", false),
+        ("large-v3_turbo", "Large Turbo", "600MB — Handles accents, crosstalk, background noise", true),
+        ("small", "Small", "216MB — Good for clear 1-on-1 audio", false),
+        ("tiny", "Tiny", "39MB — Quick test, gets the gist", false),
     ]
 
     var body: some View {
@@ -86,12 +86,12 @@ struct WelcomeView: View {
                     noteRow(
                         icon: "mic.fill",
                         title: "Microphone",
-                        detail: "Prompted automatically on first recording."
+                        detail: "Prompted on first recording. Required for voice capture."
                     )
                     noteRow(
-                        icon: "tv",
-                        title: "Screen & System Audio Recording",
-                        detail: "For capturing system audio (Zoom, Meet, Teams). Grant in System Settings → Privacy & Security → Screen & System Audio Recording."
+                        icon: "speaker.wave.2.fill",
+                        title: "System Audio Recording",
+                        detail: "For capturing the other side of calls (Zoom, Meet, Teams). Grant in System Settings → Privacy & Security → Screen & System Audio Recording."
                     )
                 }
                 .padding(4)

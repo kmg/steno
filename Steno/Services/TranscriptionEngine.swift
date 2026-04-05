@@ -22,7 +22,7 @@ final class TranscriptionEngine: ObservableObject {
     private let worker = TranscriptionWorker()
     private let logger = Logger(subsystem: "com.kmganesh.steno", category: "TranscriptionEngine")
 
-    var modelName: String = "large-v3-turbo"
+    var modelName: String = "large-v3_turbo"
     var customModelFolder: String?
 
     func loadModel() async {

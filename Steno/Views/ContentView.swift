@@ -24,6 +24,9 @@ struct ContentView: View {
             }
         }
         .task {
+            // Sync stored model preference before loading
+            let stored = UserDefaults.standard.string(forKey: "defaultModel") ?? "large-v3_turbo"
+            transcriptionEngine.modelName = stored
             await transcriptionEngine.loadModel()
             await diarizationManager.loadMLModel()
         }
