@@ -11,6 +11,8 @@ open Steno.xcodeproj
 
 Build: Cmd+B. Run: Cmd+R. Test: Cmd+U.
 
+CI uses Xcode 16.2 (macOS 15 SDK). Local dev may use a newer Xcode — don't assume a local Release build validates the CI build.
+
 ## Release
 
 ```bash
@@ -30,22 +32,24 @@ GitHub Actions builds DMG, creates release. Then update SHA256 in `kmg/homebrew-
 
 ```
 Steno/
-  StenoApp.swift        — app entry point
+  StenoApp.swift        — app entry point, first-launch gating
   Audio/
     MicrophoneCapture   — AVAudioEngine input tap
     SystemAudioCapture  — Core Audio Taps (macOS 14.2+)
     AudioMixer          — RMS ducking, clipping prevention
-    AudioFileWriter     — AVAudioFile → AAC .m4a
-    AudioSharedState    — thread-safe buffer for audio IO threads
+    AudioFileWriter     — AVAudioFile → AAC .m4a (NSLock-protected)
+    AudioSharedState    — thread-safe buffer for audio IO threads (NSLock-protected)
+    RecordingPipeline   — non-actor class owning all audio-thread work
   Models/               — Codable data types (Session, Transcript, Speaker)
   Services/
-    RecordingManager    — orchestrates mic + system audio + streaming + writing
+    RecordingManager    — @MainActor, holds @Published UI state only
     TranscriptionEngine — WhisperKit wrapper, model management
-    StreamingTranscriber — live transcription during recording
+    StreamingTranscriber — live transcription during recording (NSLock-protected)
     DiarizationManager  — FluidAudio speaker identification
     SessionStore        — ~/Documents/Steno/ file management
     CrashRecovery       — recovers interrupted sessions on launch
   Views/                — SwiftUI (NavigationSplitView, MenuBarExtra, Settings)
+    WelcomeView         — first-launch onboarding (model picker, permissions)
 ```
 
 ## Conventions
@@ -54,43 +58,30 @@ Steno/
 - Models are Codable structs
 - Services are ObservableObject classes
 - File storage: ~/Documents/Steno/ with JSON + .m4a per session
+- Audio-thread closures: zero `self` references, explicit local captures only
+- All cross-thread mutable state behind NSLock (not actors — NSLock can't be used in async contexts)
 
-## Lessons Learned
+## Thread Safety Rules
 
-### Swift 6 actor isolation on audio threads
+Audio IO threads (mic callback, system audio IO proc) run outside any actor. Code on these threads must:
+1. Never access `self` of any `@MainActor` or actor-isolated class
+2. Use explicit local variable captures in closures (not capture lists with `self`)
+3. Protect shared mutable state with NSLock (AudioSharedState, AudioFileWriter, StreamingTranscriber)
+4. Keep lock-hold time minimal — do work outside the lock, lock only for reads/writes
 
-`@MainActor` class closures running on Core Audio IO threads crash on ANY `self` access — even `self?.property` via optional chaining. Swift 6 strict concurrency enforces actor isolation at runtime with `_dispatch_assert_queue_fail`.
+## WhisperKit Notes
 
-**Fix:** Use a separate `@unchecked Sendable` class (`AudioSharedState`) for state shared between audio threads. Capture all tools (mixer, writer) as local variables BEFORE the closure. The closure must have zero references to `self`.
+- Model names use underscores: `large-v3_turbo` not `large-v3-turbo` (matches HuggingFace directory `openai_whisper-large-v3_turbo`)
+- 30-second windows are hardcoded in the model architecture (480,000 samples at 16kHz)
+- `usePrefillPrompt: false, detectLanguage: true` enables per-window language detection for mixed-language audio
+- Streaming transcriber sends full accumulated buffer (not windowed) — language detection is less reliable for live
 
-```swift
-// WRONG — crashes on audio thread
-systemCapture.bufferHandler = { [weak self] bufferList in
-    self?.systemSampleBuffer.append(contentsOf: samples)  // CRASH
-}
+## macOS App Icon
 
-// RIGHT — no self access
-let state = self.sharedState  // AudioSharedState: @unchecked Sendable
-systemCapture.bufferHandler = { bufferList in
-    state.appendSystemSamples(samples)  // safe, non-actor class
-}
-```
+Use asset catalog only — no `.icns` file, no `CFBundleIconFile` in Info.plist. Set `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` in build settings. macOS applies squircle mask automatically.
 
-### AVAudioFile over AVAssetWriter for recording
+## GitHub Actions
 
-AVAssetWriter requires CMSampleBuffer conversion from AVAudioPCMBuffer — fragile, produces 0-byte files. AVAudioFile writes PCM→AAC directly with `file.write(from: buffer)`. Simpler, reliable.
-
-### WhisperKit AudioStreamTranscriber owns its own AVAudioEngine
-
-Can't use `AudioStreamTranscriber` alongside your own `MicrophoneCapture` — two AVAudioEngine instances on the same input node conflict. Build a custom streaming loop: accumulate Float samples from mic callback, periodically call `whisperKit.transcribe(audioArray:)`.
-
-### macOS app icon needs all 10 sizes
-
-A single 1024px PNG doesn't get the squircle mask. Provide all sizes (16, 32, 64, 128, 256, 512, 1024) with correct Contents.json mapping. Use `sips -z` to generate from source, `pngquant` to optimize.
-
-### GitHub Actions release workflow
-
-- Use `macos-15` runner (not `macos-14`)
-- Explicit `sudo xcode-select -s /Applications/Xcode_16.2.app`
+- `macos-15` runner with `sudo xcode-select -s /Applications/Xcode_16.2.app`
 - `xcodebuild -resolvePackageDependencies` step before build
-- Enable **Settings → Actions → General → Workflow permissions → Read and write**
+- Enable Settings → Actions → General → Workflow permissions → Read and write
