@@ -186,7 +186,7 @@ final class StreamingTranscriber: @unchecked Sendable {
 
         let (samples, clipStart) = copySamplesForTranscription()
 
-        var options = DecodingOptions(wordTimestamps: true)
+        var options = DecodingOptions(usePrefillPrompt: false, detectLanguage: true, wordTimestamps: true)
         options.clipTimestamps = [clipStart]
 
         let results: [TranscriptionResult] = try await whisperKit.transcribe(

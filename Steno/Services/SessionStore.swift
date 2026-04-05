@@ -257,9 +257,14 @@ final class SessionStore: ObservableObject {
         guard let entry = sessions.first(where: { $0.id == id }) else { return }
         let folderURL = baseURL.appendingPathComponent(entry.path)
         do {
-            try fileManager.removeItem(at: folderURL)
+            try fileManager.trashItem(at: folderURL, resultingItemURL: nil)
         } catch {
-            logger.error("Failed to delete session folder: \(error)")
+            // Fallback to direct removal if trash fails
+            do {
+                try fileManager.removeItem(at: folderURL)
+            } catch {
+                logger.error("Failed to delete session folder: \(error)")
+            }
         }
         sessions.removeAll { $0.id == id }
         writeIndex()
