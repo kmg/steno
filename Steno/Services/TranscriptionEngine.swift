@@ -96,7 +96,14 @@ final class TranscriptionEngine: ObservableObject {
         logger.info("Transcribing: \(audioPath)")
 
         do {
-            let result = try await worker.transcribe(audioPath: audioPath)
+            let result = try await worker.transcribe(audioPath: audioPath) { progress in
+                let totalWindows = max(progress.timings.totalDecodingWindows, 1)
+                let pct = Float(min(Double(progress.windowId) / totalWindows, 1.0))
+                Task { @MainActor in
+                    self.state = .transcribing(pct)
+                }
+                return nil // continue transcription
+            }
 
             guard let result else {
                 state = .error("No transcription result")
@@ -139,11 +146,16 @@ final class TranscriptionWorker: @unchecked Sendable {
         whisperKit = try await WhisperKit(config)
     }
 
-    func transcribe(audioPath: String) async throws -> TranscriptionResult? {
+    func transcribe(
+        audioPath: String,
+        callback: @escaping @Sendable (TranscriptionProgress) -> Bool?
+    ) async throws -> TranscriptionResult? {
         guard let pipe = whisperKit else { return nil }
-        return try await pipe.transcribe(
+        let results = try await pipe.transcribe(
             audioPath: audioPath,
-            decodeOptions: DecodingOptions(wordTimestamps: true)
+            decodeOptions: DecodingOptions(wordTimestamps: true),
+            callback: { progress in callback(progress) }
         )
+        return results.first
     }
 }

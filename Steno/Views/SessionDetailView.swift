@@ -73,35 +73,86 @@ struct SessionDetailView: View {
             if let transcript = sessionStore.loadTranscript(for: sessionID) {
                 TranscriptView(transcript: transcript)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                VStack(spacing: 12) {
+            } else if case .transcribing(let progress) = transcriptionEngine.state {
+                // Transcription in progress — full-area feedback
+                let entry = sessionStore.sessions.first { $0.id == sessionID }
+                let duration = entry?.durationSeconds ?? 0
+                let processedSeconds = Double(progress) * duration
+                VStack(spacing: 16) {
                     Spacer()
-                    Image(systemName: "text.page.slash")
-                        .font(.system(size: 36))
-                        .foregroundStyle(.secondary)
-                    Text("No transcript")
+                    ProgressView(value: Double(progress))
+                        .frame(width: 200)
+                    Text("Transcribing… \(Int(progress * 100))%")
                         .font(.headline)
                         .foregroundStyle(.secondary)
-                    if let audioPath = sessionStore.audioPath(for: sessionID) {
-                        Button("Transcribe Now") {
-                            let entry = sessionStore.sessions.first { $0.id == sessionID }
-                            let audioURL = URL(fileURLWithPath: audioPath)
-                            Task {
-                                if var transcript = await transcriptionEngine.transcribe(
-                                    audioPath: audioPath,
-                                    duration: entry?.durationSeconds ?? 0
-                                ) {
-                                    diarizationManager.applySpeakerLabels(to: &transcript, audioFileURL: audioURL)
-                                    if let entry {
-                                        let s = Session(
-                                            id: entry.id, name: entry.name,
-                                            startedAt: entry.startedAt, endedAt: entry.endedAt,
-                                            durationSeconds: entry.durationSeconds, status: .complete
-                                        )
-                                        sessionStore.saveTranscript(transcript, for: s)
+                    if duration > 0 {
+                        Text("\(formatTime(processedSeconds)) / \(formatTime(duration))")
+                            .font(.subheadline)
+                            .monospacedDigit()
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                }
+            } else {
+                // No transcript yet
+                VStack(spacing: 12) {
+                    Spacer()
+                    if case .downloading(let m) = transcriptionEngine.state {
+                        ProgressView()
+                            .controlSize(.regular)
+                        Text("Downloading model \(m)…")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                        Text("Transcription will be available once the download completes.")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    } else if case .loading(let m) = transcriptionEngine.state {
+                        ProgressView()
+                            .controlSize(.regular)
+                        Text("Loading model \(m)…")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                    } else if case .error(let msg) = transcriptionEngine.state {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 36))
+                            .foregroundStyle(.orange)
+                        Text("Model Error")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                        Text(msg)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                    } else {
+                        Image(systemName: "text.page.slash")
+                            .font(.system(size: 36))
+                            .foregroundStyle(.secondary)
+                        Text("No transcript")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                        if let audioPath = sessionStore.audioPath(for: sessionID) {
+                            Button("Transcribe Now") {
+                                let entry = sessionStore.sessions.first { $0.id == sessionID }
+                                let audioURL = URL(fileURLWithPath: audioPath)
+                                Task {
+                                    if var transcript = await transcriptionEngine.transcribe(
+                                        audioPath: audioPath,
+                                        duration: entry?.durationSeconds ?? 0
+                                    ) {
+                                        diarizationManager.applySpeakerLabels(to: &transcript, audioFileURL: audioURL)
+                                        if let entry {
+                                            let s = Session(
+                                                id: entry.id, name: entry.name,
+                                                startedAt: entry.startedAt, endedAt: entry.endedAt,
+                                                durationSeconds: entry.durationSeconds, status: .complete
+                                            )
+                                            sessionStore.saveTranscript(transcript, for: s)
+                                        }
                                     }
                                 }
                             }
+                            .buttonStyle(.borderedProminent)
                         }
                     }
                     Spacer()

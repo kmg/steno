@@ -111,6 +111,9 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(width: 500, height: 480)
         .onAppear { refreshPermissions() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshPermissions()
+        }
     }
 
     @ViewBuilder

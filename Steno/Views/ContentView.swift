@@ -39,7 +39,7 @@ struct ContentView: View {
             HStack(spacing: 6) {
                 ProgressView()
                     .controlSize(.small)
-                Text("Downloading \(model)…")
+                Text("Downloading \(model) (\(modelSizeLabel(model)))…")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -94,6 +94,18 @@ struct ContentView: View {
             }
         }
         .keyboardShortcut("r", modifiers: .command)
+    }
+
+    private func modelSizeLabel(_ model: String) -> String {
+        switch model {
+        case "tiny": "39MB"
+        case "base": "74MB"
+        case "small": "216MB"
+        case "medium": "500MB"
+        case "large-v3_turbo": "600MB"
+        case "large-v3": "1.5GB"
+        default: ""
+        }
     }
 
     private func formatTime(_ interval: TimeInterval) -> String {

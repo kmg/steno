@@ -12,6 +12,7 @@ struct SessionListView: View {
 
     var body: some View {
         List(selection: $selectedSessionID) {
+            Section("Sessions") {
             // Active recording at top
             if recordingManager.isRecording {
                 HStack(spacing: 8) {
@@ -37,6 +38,7 @@ struct SessionListView: View {
                     .tag(session.id)
                     .contextMenu { contextMenu(for: session) }
             }
+            } // end Section
         }
         .listStyle(.sidebar)
         .toolbar {
