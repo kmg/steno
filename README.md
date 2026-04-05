@@ -13,6 +13,8 @@ Steno does one thing. It records both sides of a conversation on your Mac and tr
 
 That's it. No summaries. No action items. No calendar sync. You get the raw transcript and the audio file, in a folder you control.
 
+If you want summaries, action items, or follow-ups, point an AI agent at the transcript. Claude Code, Codex, Claude co-work. The JSON is clean. Steno captures. You decide what to do with it.
+
 ## Who this is for
 
 You're on an M-series Mac. You have meetings. You want a searchable transcript without trusting a third party with your audio. You've looked at Otter, Granola, Meetily, and the rest. They're either cloud-dependent, electron-wrapped, or you can't tell what they do with your data.
