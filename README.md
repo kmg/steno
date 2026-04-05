@@ -13,28 +13,12 @@ Recordings go to `~/Documents/Steno/`. Plain folders, plain files. No database.
 
 ## Install
 
-### Homebrew
-
 ```bash
 brew tap kmg/steno
 brew install --cask steno
 ```
 
-### Build from source
-
-```bash
-brew install xcodegen
-git clone https://github.com/kmg/steno.git
-cd steno
-xcodegen generate
-open Steno.xcodeproj
-```
-
-### Download
-
-[Steno-v0.1.0.dmg](https://github.com/kmg/steno/releases/latest)
-
-First launch: right-click → Open (or System Settings → Privacy & Security → Open Anyway). Unsigned app.
+Or download [Steno-v0.1.0.dmg](https://github.com/kmg/steno/releases/latest) directly. First launch: right-click → Open (unsigned app).
 
 ## Requirements
 
@@ -79,6 +63,16 @@ Unix philosophy. One tool, one job. Record and transcribe. Nothing else.
 | Storage | File system + JSON |
 
 Two dependencies. Both open source. MIT and Apache 2.0.
+
+## Build from source
+
+```bash
+brew install xcodegen
+git clone https://github.com/kmg/steno.git
+cd steno
+xcodegen generate
+open Steno.xcodeproj
+```
 
 ## License
 
