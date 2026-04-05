@@ -84,19 +84,14 @@ struct WelcomeView: View {
                         .font(.headline)
 
                     noteRow(
-                        icon: "lock.shield",
-                        title: "Unsigned App",
-                        detail: "macOS may warn this app is damaged. Go to System Settings → Privacy & Security → scroll down → click \"Open Anyway\"."
-                    )
-                    noteRow(
                         icon: "mic.fill",
                         title: "Microphone",
                         detail: "Prompted automatically on first recording."
                     )
                     noteRow(
                         icon: "tv",
-                        title: "Screen Recording (optional)",
-                        detail: "For system audio capture. Grant in System Settings → Privacy & Security → Screen Recording."
+                        title: "Screen & System Audio Recording",
+                        detail: "For capturing system audio (Zoom, Meet, Teams). Grant in System Settings → Privacy & Security → Screen & System Audio Recording."
                     )
                 }
                 .padding(4)
