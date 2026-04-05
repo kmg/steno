@@ -39,7 +39,6 @@ struct SessionListView: View {
             }
         }
         .listStyle(.sidebar)
-        .navigationTitle("Sessions")
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 Menu {

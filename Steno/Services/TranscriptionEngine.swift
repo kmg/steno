@@ -6,6 +6,7 @@ import os
 final class TranscriptionEngine: ObservableObject {
     enum State: Equatable {
         case idle
+        case downloading(String)
         case loading(String)
         case transcribing(Float)
         case streaming
@@ -21,12 +22,13 @@ final class TranscriptionEngine: ObservableObject {
     private let worker = TranscriptionWorker()
     private let logger = Logger(subsystem: "com.kmganesh.steno", category: "TranscriptionEngine")
 
-    var modelName: String = "tiny"
+    var modelName: String = "large-v3-turbo"
     var customModelFolder: String?
 
     func loadModel() async {
-        state = .loading(modelName)
-        logger.info("Loading WhisperKit model: \(self.modelName)")
+        let cached = isModelCached(modelName)
+        state = cached ? .loading(modelName) : .downloading(modelName)
+        logger.info("Loading WhisperKit model: \(self.modelName), cached: \(cached)")
 
         do {
             try await worker.load(model: modelName, modelFolder: customModelFolder)
@@ -36,6 +38,15 @@ final class TranscriptionEngine: ObservableObject {
             state = .error("Failed to load model: \(error.localizedDescription)")
             logger.error("Failed to load WhisperKit: \(error)")
         }
+    }
+
+    private func isModelCached(_ model: String) -> Bool {
+        let cacheDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".cache/huggingface/hub")
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+            at: cacheDir, includingPropertiesForKeys: nil
+        ) else { return false }
+        return contents.contains { $0.lastPathComponent.contains("WhisperKit") }
     }
 
     /// Create a streaming transcriber using the loaded WhisperKit instance.

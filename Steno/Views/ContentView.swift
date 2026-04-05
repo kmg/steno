@@ -16,6 +16,9 @@ struct ContentView: View {
         }
         .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
         .toolbar {
+            ToolbarItemGroup(placement: .automatic) {
+                modelStatusView
+            }
             ToolbarItemGroup(placement: .primaryAction) {
                 recordButton
             }
@@ -23,6 +26,39 @@ struct ContentView: View {
         .task {
             await transcriptionEngine.loadModel()
             await diarizationManager.loadMLModel()
+        }
+    }
+
+    @ViewBuilder
+    private var modelStatusView: some View {
+        switch transcriptionEngine.state {
+        case .downloading(let model):
+            HStack(spacing: 6) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Downloading \(model)…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        case .loading(let model):
+            HStack(spacing: 6) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Loading \(model)…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        case .error(let msg):
+            HStack(spacing: 4) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                Text(msg)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        default:
+            EmptyView()
         }
     }
 
