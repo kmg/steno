@@ -18,7 +18,7 @@ brew tap kmg/steno
 brew install --cask steno
 ```
 
-Or download [Steno-v0.1.0.dmg](https://github.com/kmg/steno/releases/latest) directly. First launch: right-click → Open (unsigned app).
+Or download the [latest DMG](https://github.com/kmg/steno/releases/latest) directly. First launch: right-click → Open (unsigned app).
 
 ## Requirements
 
