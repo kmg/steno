@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Steno needs microphone access to record and transcribe conversations.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Steno needs system audio access to capture the remote side of video calls.</string>
+</dict>
+</plist>

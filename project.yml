@@ -1,0 +1,80 @@
+name: Steno
+options:
+  bundleIdPrefix: com.kmganesh
+  deploymentTarget:
+    macOS: "14.2"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: true
+
+packages:
+  WhisperKit:
+    url: https://github.com/argmaxinc/WhisperKit.git
+    from: "0.9.0"
+  FluidAudio:
+    url: https://github.com/FluidInference/FluidAudio.git
+    from: "0.13.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    ARCHS: arm64
+    EXCLUDED_ARCHS[sdk=macosx*]: x86_64
+
+targets:
+  Steno:
+    type: application
+    platform: macOS
+    sources:
+      - path: Steno
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - package: WhisperKit
+      - package: FluidAudio
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kmganesh.steno
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Steno/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: "Steno"
+        INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.productivity"
+        CODE_SIGN_ENTITLEMENTS: Steno/Steno.entitlements
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+
+  StenoTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: StenoTests
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - target: Steno
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kmganesh.steno.tests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+
+schemes:
+  Steno:
+    build:
+      targets:
+        Steno: all
+        StenoTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - StenoTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
