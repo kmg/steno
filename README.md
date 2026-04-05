@@ -60,8 +60,6 @@ Point any tool at this. Claude Code, Codex, a shell script, grep. The transcript
 
 ## Design
 
-Unix philosophy. One tool, one job. Record and transcribe. Nothing else.
-
 - **Local only.** No network calls after initial model download. No analytics, no telemetry, no update checks.
 - **No bot joins your call.** System audio captured via Core Audio Taps. The other participants never know.
 - **Speaker identification.** FluidAudio ML identifies up to 10 speakers automatically. Runs on the Neural Engine.
