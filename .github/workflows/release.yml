@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build
+        run: |
+          xcodebuild -project Steno.xcodeproj \
+            -scheme Steno \
+            -configuration Release \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath build \
+            build
+
+      - name: Create DMG
+        run: |
+          APP_PATH="build/Build/Products/Release/Steno.app"
+          DMG_NAME="Steno-${GITHUB_REF_NAME}.dmg"
+
+          mkdir -p dmg-staging
+          cp -R "$APP_PATH" dmg-staging/
+          ln -s /Applications dmg-staging/Applications
+
+          hdiutil create -volname "Steno" \
+            -srcfolder dmg-staging \
+            -ov -format UDZO \
+            "$DMG_NAME"
+
+          echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
+          echo "DMG_SHA256=$(shasum -a 256 $DMG_NAME | cut -d ' ' -f 1)" >> $GITHUB_ENV
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.DMG_NAME }}
+          body: |
+            ## Install
+
+            Download the DMG, drag Steno to Applications.
+
+            First launch: right-click → Open (or System Settings → Privacy & Security → Open Anyway).
+
+            **SHA256:** `${{ env.DMG_SHA256 }}`
+          draft: false
+          prerelease: false
