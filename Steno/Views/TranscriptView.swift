@@ -6,9 +6,6 @@ struct TranscriptView: View {
     private let speakerColorPalette: [Color] = [.blue, .green, .orange, .purple, .pink, .cyan, .mint, .indigo, .brown, .teal]
 
     private func colorForSpeaker(_ id: String) -> Color {
-        if id == "SPEAKER_LOCAL" { return .blue }
-        if id == "SPEAKER_REMOTE" { return .green }
-        // Extract index from "SPEAKER_N"
         if let idx = Int(id.replacingOccurrences(of: "SPEAKER_", with: "")),
            idx < speakerColorPalette.count {
             return speakerColorPalette[idx]

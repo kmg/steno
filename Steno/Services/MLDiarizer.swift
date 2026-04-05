@@ -51,7 +51,7 @@ final class MLDiarizer: @unchecked Sendable {
         let uniqueSpeakers = Set(diarSegments.map(\.speakerIndex)).sorted()
         for idx in uniqueSpeakers {
             let id = "SPEAKER_\(idx)"
-            speakers[id] = Speaker(id: id, source: .mlDiarization, label: "Speaker \(idx + 1)")
+            speakers[id] = Speaker(id: id, source: .mlIdentification, label: "Speaker \(idx + 1)")
         }
 
         // Assign speakers to transcript segments by maximum time overlap
