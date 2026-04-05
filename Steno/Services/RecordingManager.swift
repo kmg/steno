@@ -22,11 +22,7 @@ final class RecordingManager: ObservableObject {
     private var streamingTranscriber: StreamingTranscriber?
     private var streamingTask: Task<Void, Never>?
 
-    private var systemSampleBuffer: [Float] = []
-    private let bufferLock = NSLock()
-    private var systemAudioReady = false
-    private var writerStarted = false
-    private var micCallbackCount = 0
+    private let sharedState = AudioSharedState()
 
     func startRecording(sessionStore: SessionStore, transcriptionEngine: TranscriptionEngine, diarizationManager: DiarizationManager) {
         guard !isRecording else { return }
@@ -41,14 +37,11 @@ final class RecordingManager: ObservableObject {
             // Always try system audio — silently skip if it fails
             systemAudioActive = false
             let localMixer = self.mixer
-            let localBufferLock = self.bufferLock
+            let state = self.sharedState
             do {
-                systemCapture.bufferHandler = { [weak self] bufferList in
+                systemCapture.bufferHandler = { bufferList in
                     if let samples = localMixer.samplesFromBufferList(bufferList) {
-                        localBufferLock.lock()
-                        self?.systemSampleBuffer.append(contentsOf: samples)
-                        if self?.systemAudioReady == false { self?.systemAudioReady = true }
-                        localBufferLock.unlock()
+                        state.appendSystemSamples(samples)
                     }
                 }
                 try systemCapture.start()
@@ -61,41 +54,28 @@ final class RecordingManager: ObservableObject {
             let captureSystemAudio = self.systemAudioActive
 
             let localWriter = self.writer
-            try mic.start { [weak self] buffer, _ in
+            let toBuffer = self.floatsToBuffer
+            try mic.start { buffer, _ in
                 streamer?.appendBuffer(buffer)
 
-                // Wait for system audio before writing, to avoid silence at start
                 if captureSystemAudio {
-                    guard let self else { return }
-                    if !self.writerStarted {
-                        self.micCallbackCount += 1
-                        localBufferLock.lock()
-                        let ready = self.systemAudioReady
-                        localBufferLock.unlock()
-                        if !ready && self.micCallbackCount < 10 {
+                    // Wait for system audio before writing
+                    if !state.writerStarted {
+                        state.callbackCount += 1
+                        if !state.isReady && state.callbackCount < 10 {
                             return
                         }
-                        self.writerStarted = true
+                        state.writerStarted = true
                     }
 
                     if let floatData = buffer.floatChannelData {
                         let frameCount = Int(buffer.frameLength)
                         let micSamples = Array(UnsafeBufferPointer(start: floatData[0], count: frameCount))
-
-                        localBufferLock.lock()
-                        let availableSystem = min(frameCount, self.systemSampleBuffer.count)
-                        let sysSamples: [Float]
-                        if availableSystem > 0 {
-                            sysSamples = Array(self.systemSampleBuffer.prefix(availableSystem))
-                            self.systemSampleBuffer.removeFirst(availableSystem)
-                        } else {
-                            sysSamples = []
-                        }
-                        localBufferLock.unlock()
+                        let sysSamples = state.consumeSystemSamples(count: frameCount)
 
                         if !sysSamples.isEmpty {
                             let mixed = localMixer.mix(micSamples: micSamples, systemSamples: sysSamples)
-                            if let mixedBuffer = self.floatsToBuffer(mixed, format: buffer.format) {
+                            if let mixedBuffer = toBuffer(mixed, buffer.format) {
                                 localWriter.append(buffer: mixedBuffer)
                             } else {
                                 localWriter.append(buffer: buffer)
@@ -174,12 +154,7 @@ final class RecordingManager: ObservableObject {
         streamingTranscriber = nil
         streamingTask = nil
         systemAudioActive = false
-        writerStarted = false
-        micCallbackCount = 0
-        bufferLock.lock()
-        systemSampleBuffer = []
-        systemAudioReady = false
-        bufferLock.unlock()
+        sharedState.reset()
 
         return (session, duration)
     }
