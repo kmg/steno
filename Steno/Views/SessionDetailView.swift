@@ -70,10 +70,7 @@ struct SessionDetailView: View {
 
     private func savedSessionView(sessionID: String) -> some View {
         VStack(spacing: 0) {
-            if let transcript = sessionStore.loadTranscript(for: sessionID) {
-                TranscriptView(transcript: transcript)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if case .transcribing(let progress) = transcriptionEngine.state {
+            if case .transcribing(let progress) = transcriptionEngine.state {
                 // Transcription in progress — full-area feedback
                 let entry = sessionStore.sessions.first { $0.id == sessionID }
                 let duration = entry?.durationSeconds ?? 0
@@ -93,6 +90,9 @@ struct SessionDetailView: View {
                     }
                     Spacer()
                 }
+            } else if let transcript = sessionStore.loadTranscript(for: sessionID) {
+                TranscriptView(transcript: transcript)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 // No transcript yet
                 VStack(spacing: 12) {
