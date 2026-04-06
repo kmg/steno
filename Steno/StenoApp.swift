@@ -31,9 +31,12 @@ struct StenoApp: App {
                 .environmentObject(transcriptionEngine)
                 .environmentObject(diarizationManager)
         } label: {
-            Image(systemName: recordingManager.isRecording ? "record.circle.fill" : "waveform")
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(recordingManager.isRecording ? .red : .primary)
+            if recordingManager.isRecording {
+                Image(systemName: "record.circle.fill")
+                    .foregroundStyle(.red)
+            } else {
+                Image("MenuBarIcon")
+            }
         }
 
         Settings {
