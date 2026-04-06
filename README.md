@@ -1,13 +1,15 @@
-# Steno
+# Steno — Local Meeting Transcription for macOS
 
-Record meetings on your Mac. Transcribe locally. No cloud, no bots, no accounts.
+Offline meeting transcription for Mac. No cloud, no accounts, no network calls — ever. Once the model downloads, Steno runs fully air-gapped on Apple Silicon.
+
+Record both sides of Zoom, Meet, or Teams calls. Transcribe on-device with [WhisperKit](https://github.com/argmaxinc/WhisperKit) (Whisper on Core ML). Speaker identification included. Plain files you own — no database, no proprietary format.
 
 ## What it does
 
-1. Press record. Captures your mic and system audio (Zoom, Meet, Teams) simultaneously.
-2. Words appear live as the conversation happens.
+1. Press record. Captures both sides of the conversation.
+2. Words appear live as people speak.
 3. Press stop. Audio saved as .m4a, transcript as JSON with timestamps and speaker labels.
-4. Browse past sessions. Click any to read the transcript.
+4. Browse past sessions. Re-transcribe anytime with a different model.
 
 Recordings go to `~/Documents/Steno/`. Plain folders, plain files. No database.
 
@@ -43,6 +45,13 @@ After this, Steno opens normally.
 - macOS 14.2+ (Sonoma)
 - Apple Silicon (M1/M2/M3/M4)
 
+## Privacy
+
+- **Zero network calls** after initial model download. No analytics, no telemetry, no update checks, no phoning home. Fully air-gapped.
+- **No meeting bots.** System audio captured via Core Audio Taps — no bot joins your call, no browser extension.
+- **Your files.** Recordings and transcripts are plain files in `~/Documents/Steno/`. No database, no proprietary format. Browse in Finder, back up however you want.
+- **Open source.** Two dependencies, both open source (MIT / Apache 2.0). You can read every line.
+
 ## Extending
 
 Steno outputs clean JSON. It doesn't summarize, generate action items, or integrate with anything. That's by design.
@@ -58,14 +67,6 @@ Steno outputs clean JSON. It doesn't summarize, generate action items, or integr
 
 Point any tool at this. Claude Code, Codex, a shell script, grep. The transcript is yours to do what you want with.
 
-## Design
-
-- **Local only.** No network calls after initial model download. No analytics, no telemetry, no update checks.
-- **No bot joins your call.** System audio captured via Core Audio Taps. The other participants never know.
-- **Speaker identification.** FluidAudio ML identifies up to 10 speakers automatically. Runs on the Neural Engine.
-- **Custom models.** Convert any fine-tuned Whisper model to Core ML with [whisperkittools](https://github.com/argmaxinc/whisperkittools). Point Steno at the folder in Settings.
-- **Crash safe.** Audio and partial transcripts survive force-quits. Recovered on next launch.
-
 ## Architecture
 
 | Component | Technology |
@@ -77,8 +78,6 @@ Point any tool at this. Claude Code, Codex, a shell script, grep. The transcript
 | Transcription | [WhisperKit](https://github.com/argmaxinc/WhisperKit) (Core ML, Neural Engine) |
 | Speaker ID | [FluidAudio](https://github.com/FluidInference/FluidAudio) (Core ML) |
 | Storage | File system + JSON |
-
-Two dependencies. Both open source. MIT and Apache 2.0.
 
 ## Build from source
 
