@@ -136,11 +136,10 @@ struct SessionDetailView: View {
                                 let entry = sessionStore.sessions.first { $0.id == sessionID }
                                 let audioURL = URL(fileURLWithPath: audioPath)
                                 Task {
-                                    if var transcript = await transcriptionEngine.transcribe(
+                                    if let transcript = await transcriptionEngine.transcribe(
                                         audioPath: audioPath,
                                         duration: entry?.durationSeconds ?? 0
                                     ) {
-                                        diarizationManager.applySpeakerLabels(to: &transcript, audioFileURL: audioURL)
                                         if let entry {
                                             let s = Session(
                                                 id: entry.id, name: entry.name,
@@ -148,6 +147,10 @@ struct SessionDetailView: View {
                                                 durationSeconds: entry.durationSeconds, status: .complete
                                             )
                                             sessionStore.saveTranscript(transcript, for: s)
+                                            // Diarize in background — updates transcript when done
+                                            var labeled = transcript
+                                            diarizationManager.applySpeakerLabels(to: &labeled, audioFileURL: audioURL)
+                                            sessionStore.saveTranscript(labeled, for: s)
                                         }
                                     }
                                 }

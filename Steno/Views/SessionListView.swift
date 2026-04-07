@@ -131,13 +131,10 @@ struct SessionListView: View {
             .appendingPathComponent(session.path)
             .appendingPathComponent("audio.m4a")
         Task {
-            if var transcript = await transcriptionEngine.transcribe(
+            if let transcript = await transcriptionEngine.transcribe(
                 audioPath: audioPath,
                 duration: session.durationSeconds ?? 0
             ) {
-                // Apply ML diarization on re-transcribe (Layer 2)
-                diarizationManager.applySpeakerLabels(to: &transcript, audioFileURL: audioURL)
-
                 let s = Session(
                     id: session.id,
                     name: session.name,
@@ -148,6 +145,10 @@ struct SessionListView: View {
                 )
                 sessionStore.saveTranscript(transcript, for: s)
                 Analytics.retranscribeCompleted(duration: session.durationSeconds ?? 0, model: transcriptionEngine.modelName)
+                // Diarize in background — updates transcript when done
+                var labeled = transcript
+                diarizationManager.applySpeakerLabels(to: &labeled, audioFileURL: audioURL)
+                sessionStore.saveTranscript(labeled, for: s)
             }
         }
     }
