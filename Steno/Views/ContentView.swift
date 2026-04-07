@@ -5,6 +5,7 @@ struct ContentView: View {
     @EnvironmentObject var recordingManager: RecordingManager
     @EnvironmentObject var transcriptionEngine: TranscriptionEngine
     @EnvironmentObject var diarizationManager: DiarizationManager
+    @EnvironmentObject var updateChecker: UpdateChecker
 
     @State private var selectedSessionID: String?
 
@@ -23,12 +24,42 @@ struct ContentView: View {
                 recordButton
             }
         }
+        .safeAreaInset(edge: .top) {
+            if updateChecker.showBanner, let update = updateChecker.availableUpdate {
+                HStack {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .foregroundStyle(.blue)
+                    Text("Steno \(update.version) is available.")
+                        .font(.callout)
+                    Text("Run")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Text("brew upgrade steno")
+                        .font(.callout.monospaced())
+                        .foregroundStyle(.blue)
+                        .textSelection(.enabled)
+                    Text("or")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Link("download", destination: update.url)
+                        .font(.callout)
+                    Spacer()
+                    Button { updateChecker.dismiss() } label: {
+                        Image(systemName: "xmark").font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(.blue.opacity(0.08))
+            }
+        }
         .task {
-            // Sync stored model preference before loading
             let stored = UserDefaults.standard.string(forKey: "defaultModel") ?? "large-v3_turbo"
             transcriptionEngine.modelName = stored
             await transcriptionEngine.loadModel()
             await diarizationManager.loadMLModel()
+            updateChecker.startChecking()
         }
     }
 

@@ -7,6 +7,8 @@ struct WelcomeView: View {
     @Binding var hasCompletedSetup: Bool
 
     @State private var selectedModel = "large-v3_turbo"
+    @AppStorage("enableCrashReporting") private var enableCrashReporting = true
+    @AppStorage("enableAnalytics") private var enableAnalytics = true
 
     private let models = [
         ("large-v3_turbo", "Large Turbo", "600MB — Handles accents, crosstalk, background noise", true),
@@ -77,27 +79,45 @@ struct WelcomeView: View {
             .padding(.horizontal, 40)
             .padding(.top, 16)
 
-            // Permissions + first launch note
+            // Permissions
             GroupBox {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Setup Notes")
+                    Text("Permissions")
                         .font(.headline)
 
                     noteRow(
                         icon: "mic.fill",
                         title: "Microphone",
-                        detail: "Prompted on first recording. Required for voice capture."
+                        detail: "Prompted on first recording."
                     )
                     noteRow(
                         icon: "speaker.wave.2.fill",
                         title: "System Audio Recording",
-                        detail: "For capturing the other side of calls (Zoom, Meet, Teams). Grant in System Settings → Privacy & Security → Screen & System Audio Recording."
+                        detail: "For capturing calls. Grant in System Settings → Privacy & Security."
                     )
                 }
                 .padding(4)
             }
             .padding(.horizontal, 40)
             .padding(.top, 12)
+
+            // Diagnostics
+            GroupBox {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Diagnostics")
+                        .font(.headline)
+
+                    Toggle("Send crash reports", isOn: $enableCrashReporting)
+                    Toggle("Anonymous usage analytics", isOn: $enableAnalytics)
+
+                    Text("No audio, transcripts, or identifying information is ever sent. You can change these in Settings.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(4)
+            }
+            .padding(.horizontal, 40)
+            .padding(.top, 8)
 
             Spacer(minLength: 20)
 
@@ -114,7 +134,7 @@ struct WelcomeView: View {
             .padding(.horizontal, 40)
             .padding(.bottom, 24)
         }
-        .frame(width: 480, height: 580)
+        .frame(width: 480, height: 660)
     }
 
     private func noteRow(icon: String, title: String, detail: String) -> some View {

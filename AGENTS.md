@@ -27,6 +27,8 @@ GitHub Actions builds DMG, creates release. Then update SHA256 in `kmg/homebrew-
 
 - **WhisperKit** (argmaxinc/WhisperKit) — transcription via Core ML
 - **FluidAudio** (FluidInference/FluidAudio) — speaker identification via Core ML
+- **Sentry** (getsentry/sentry-cocoa) — crash reporting (opt-out)
+- **PostHog** (PostHog/posthog-ios) — anonymous usage analytics (opt-out)
 
 ## Architecture
 
@@ -45,6 +47,8 @@ Steno/
     RecordingManager    — @MainActor, holds @Published UI state only
     TranscriptionEngine — WhisperKit wrapper, model management
     StreamingTranscriber — live transcription during recording (NSLock-protected)
+    Analytics           — Sentry + PostHog wrapper, event helpers
+    UpdateChecker       — GitHub Releases version check
     DiarizationManager  — FluidAudio speaker identification
     SessionStore        — ~/Documents/Steno/ file management
     CrashRecovery       — recovers interrupted sessions on launch

@@ -34,10 +34,11 @@ Or download the [latest DMG](https://github.com/kmg/steno/releases/latest) direc
 
 ## Privacy
 
-- **Zero network calls** after initial model download. No analytics, no telemetry, no update checks, no phoning home. Fully air-gapped.
+- **Audio never leaves your machine.** All transcription runs on Apple Silicon. No audio, transcript text, or file paths are ever transmitted.
 - **No meeting bots.** System audio captured via Core Audio Taps — no bot joins your call, no browser extension.
-- **Your files.** Recordings and transcripts are plain files in `~/Documents/Steno/`. No database, no proprietary format. Browse in Finder, back up however you want.
-- **Open source.** Two dependencies, both open source (MIT / Apache 2.0). You can read every line.
+- **Anonymous diagnostics (opt-out).** Steno sends anonymous crash reports and usage events (recording duration, model used, locale) to help improve the app. No audio, no transcripts, no identifying information. Disable in Settings → Privacy & Diagnostics.
+- **Your files.** Recordings and transcripts are plain files in `~/Documents/Steno/`. No database, no proprietary format.
+- **Open source.** [github.com/kmg/steno](https://github.com/kmg/steno). You can read every line.
 
 ## Extending
 

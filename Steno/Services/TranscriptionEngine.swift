@@ -37,6 +37,7 @@ final class TranscriptionEngine: ObservableObject {
         } catch {
             state = .error("Failed to load model: \(error.localizedDescription)")
             logger.error("Failed to load WhisperKit: \(error)")
+            Analytics.captureError(error, context: ["action": "load_model", "model": modelName])
         }
     }
 
@@ -126,6 +127,7 @@ final class TranscriptionEngine: ObservableObject {
         } catch {
             state = .error("Transcription failed: \(error.localizedDescription)")
             logger.error("Transcription failed: \(error)")
+            Analytics.captureError(error, context: ["action": "transcribe_file"])
             return nil
         }
     }

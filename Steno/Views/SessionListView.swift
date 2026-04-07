@@ -140,6 +140,7 @@ struct SessionListView: View {
                     status: .complete
                 )
                 sessionStore.saveTranscript(transcript, for: s)
+                Analytics.retranscribeCompleted(duration: session.durationSeconds ?? 0, model: transcriptionEngine.modelName)
             }
         }
     }
@@ -160,6 +161,7 @@ struct SessionListView: View {
                     duration: session.durationSeconds ?? 0
                 ) {
                     sessionStore.saveTranscript(transcript, for: session)
+                    Analytics.importTranscribed(duration: session.durationSeconds ?? 0, model: transcriptionEngine.modelName)
                 }
                 selectedSessionID = session.id
             }
