@@ -109,6 +109,9 @@ struct WelcomeView: View {
 
                     Toggle("Send crash reports", isOn: $enableCrashReporting)
                     Toggle("Anonymous usage analytics", isOn: $enableAnalytics)
+                        .onChange(of: enableAnalytics) {
+                            Analytics.syncPostHogOptOut()
+                        }
 
                     Text("No audio, transcripts, or identifying information is ever sent. You can change these in Settings.")
                         .font(.caption)

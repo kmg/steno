@@ -9,6 +9,7 @@ struct SessionListView: View {
     @Binding var selectedSessionID: String?
     @State private var renamingSessionID: String?
     @State private var renameText: String = ""
+    @State private var importError: String?
 
     var body: some View {
         List(selection: $selectedSessionID) {
@@ -54,6 +55,12 @@ struct SessionListView: View {
                     Image(systemName: "ellipsis.circle")
                 }
             }
+        }
+        .alert("Import Failed", isPresented: Binding(
+            get: { importError != nil },
+            set: { if !$0 { importError = nil } }
+        )) {} message: {
+            Text(importError ?? "")
         }
     }
 
@@ -164,6 +171,8 @@ struct SessionListView: View {
                     Analytics.importTranscribed(duration: session.durationSeconds ?? 0, model: transcriptionEngine.modelName)
                 }
                 selectedSessionID = session.id
+            } else {
+                importError = "Failed to import audio file."
             }
         }
     }

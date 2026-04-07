@@ -9,6 +9,13 @@ struct ContentView: View {
 
     @State private var selectedSessionID: String?
 
+    private var showRecordingError: Binding<Bool> {
+        Binding(
+            get: { recordingManager.error != nil },
+            set: { if !$0 { recordingManager.error = nil } }
+        )
+    }
+
     var body: some View {
         NavigationSplitView {
             SessionListView(selectedSessionID: $selectedSessionID)
@@ -53,6 +60,9 @@ struct ContentView: View {
                 .padding(.vertical, 8)
                 .background(.blue.opacity(0.08))
             }
+        }
+        .alert("Recording Error", isPresented: showRecordingError, actions: {}) {
+            Text(recordingManager.error ?? "Unknown error")
         }
         .task {
             let stored = UserDefaults.standard.string(forKey: "defaultModel") ?? "large-v3_turbo"
