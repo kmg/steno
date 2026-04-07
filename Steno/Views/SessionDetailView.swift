@@ -8,6 +8,7 @@ struct SessionDetailView: View {
     @EnvironmentObject var diarizationManager: DiarizationManager
 
     @Binding var selectedSessionID: String?
+    @State private var loadedTranscript: Transcript?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,6 +21,26 @@ struct SessionDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onChange(of: selectedSessionID) {
+            loadTranscriptIfNeeded()
+        }
+        .onChange(of: transcriptionEngine.state) {
+            // Reload transcript when transcription completes
+            if transcriptionEngine.state == .complete {
+                loadTranscriptIfNeeded()
+            }
+        }
+        .onAppear {
+            loadTranscriptIfNeeded()
+        }
+    }
+
+    private func loadTranscriptIfNeeded() {
+        if let id = selectedSessionID {
+            loadedTranscript = sessionStore.loadTranscript(for: id)
+        } else {
+            loadedTranscript = nil
+        }
     }
 
     // MARK: - Recording View
@@ -90,7 +111,7 @@ struct SessionDetailView: View {
                     }
                     Spacer()
                 }
-            } else if let transcript = sessionStore.loadTranscript(for: sessionID) {
+            } else if let transcript = loadedTranscript {
                 TranscriptView(transcript: transcript)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
