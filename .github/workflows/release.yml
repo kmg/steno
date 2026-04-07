@@ -34,7 +34,50 @@ jobs:
             -destination 'generic/platform=macOS' \
             -derivedDataPath build \
             ARCHS=arm64 \
+            DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} \
             build
+
+      - name: Import certificate
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_PASSWORD }}
+        run: |
+          # Create temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import certificate
+          echo "$CERTIFICATE_BASE64" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          security import $RUNNER_TEMP/certificate.p12 \
+            -P "$CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+
+          # Set keychain search list
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+          # Get signing identity
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | head -1 | grep -o '".*"' | tr -d '"')
+          echo "SIGNING_IDENTITY=$IDENTITY" >> $GITHUB_ENV
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
+
+      - name: Sign app
+        run: |
+          codesign --force --options runtime \
+            --sign "${{ env.SIGNING_IDENTITY }}" \
+            --keychain "${{ env.KEYCHAIN_PATH }}" \
+            --deep \
+            "build/Build/Products/Release/Steno.app"
+
+          # Verify
+          codesign --verify --deep --strict "build/Build/Products/Release/Steno.app"
+          echo "Signing verified"
 
       - name: Create DMG
         run: |
@@ -50,8 +93,33 @@ jobs:
             -ov -format UDZO \
             "$DMG_NAME"
 
+          # Sign the DMG too
+          codesign --force --sign "${{ env.SIGNING_IDENTITY }}" \
+            --keychain "${{ env.KEYCHAIN_PATH }}" \
+            "$DMG_NAME"
+
           echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
-          echo "DMG_SHA256=$(shasum -a 256 $DMG_NAME | cut -d ' ' -f 1)" >> $GITHUB_ENV
+
+      - name: Notarize
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcrun notarytool submit "${{ env.DMG_NAME }}" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --wait
+
+          # Staple the notarization ticket to the DMG
+          xcrun stapler staple "${{ env.DMG_NAME }}"
+
+          echo "DMG_SHA256=$(shasum -a 256 ${{ env.DMG_NAME }} | cut -d ' ' -f 1)" >> $GITHUB_ENV
+
+      - name: Cleanup keychain
+        if: always()
+        run: security delete-keychain $RUNNER_TEMP/signing.keychain-db || true
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -60,9 +128,12 @@ jobs:
           body: |
             ## Install
 
-            Download the DMG, drag Steno to Applications.
+            ```bash
+            brew tap kmg/steno
+            brew install --cask steno
+            ```
 
-            First launch: right-click → Open (or System Settings → Privacy & Security → Open Anyway).
+            Or download the DMG, drag Steno to Applications.
 
             **SHA256:** `${{ env.DMG_SHA256 }}`
           draft: false

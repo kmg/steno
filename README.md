@@ -20,20 +20,7 @@ brew tap kmg/steno
 brew install --cask steno
 ```
 
-Or download the [latest DMG](https://github.com/kmg/steno/releases/latest) directly.
-
-### First launch (unsigned app)
-
-Steno is not notarized. macOS will block it on first launch:
-
-1. Open the DMG and drag Steno to Applications
-2. Double-click Steno — macOS shows "Steno Not Opened" → click **Done**
-3. Open **System Settings → Privacy & Security** → scroll to Security
-4. Click **Open Anyway** next to "Steno was blocked"
-5. Confirm the dialog → authenticate with Touch ID or password
-6. Allow Documents folder access when prompted
-
-After this, Steno opens normally.
+Or download the [latest DMG](https://github.com/kmg/steno/releases/latest) directly. Signed and notarized — just drag to Applications and open.
 
 ### Permissions
 
