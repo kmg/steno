@@ -9,13 +9,19 @@ final class UpdateChecker: ObservableObject {
     }
 
     @Published var availableUpdate: UpdateInfo?
-    @Published var dismissed = false
 
     private let logger = Logger(subsystem: "com.kmganesh.steno", category: "UpdateChecker")
     private var checkTask: Task<Void, Never>?
 
+    /// Version the user dismissed — persisted so banner doesn't reappear on restart
+    private var dismissedVersion: String {
+        get { UserDefaults.standard.string(forKey: "dismissedUpdateVersion") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "dismissedUpdateVersion") }
+    }
+
     var showBanner: Bool {
-        availableUpdate != nil && !dismissed
+        guard let update = availableUpdate else { return false }
+        return update.version != dismissedVersion
     }
 
     func startChecking() {
@@ -30,7 +36,9 @@ final class UpdateChecker: ObservableObject {
     }
 
     func dismiss() {
-        dismissed = true
+        if let version = availableUpdate?.version {
+            dismissedVersion = version
+        }
     }
 
     private func checkOnce() async {
@@ -52,7 +60,6 @@ final class UpdateChecker: ObservableObject {
                     version: remote,
                     url: URL(string: release.html_url) ?? url
                 )
-                dismissed = false
                 logger.info("Update available: \(remote)")
             }
         } catch {

@@ -40,6 +40,7 @@ struct SettingsView: View {
                     if defaultModel != "custom" {
                         transcriptionEngine.modelName = defaultModel
                         transcriptionEngine.customModelFolder = nil
+                        Task { await transcriptionEngine.loadModel() }
                     }
                 }
 
@@ -52,12 +53,13 @@ struct SettingsView: View {
                         Button("Browse...") {
                             browseForModelFolder()
                         }
-                    }
-                    .onChange(of: customModelPath) {
-                        if !customModelPath.isEmpty {
+                        Button("Load") {
+                            guard !customModelPath.isEmpty else { return }
                             transcriptionEngine.customModelFolder = customModelPath
                             transcriptionEngine.modelName = "custom"
+                            Task { await transcriptionEngine.loadModel() }
                         }
+                        .disabled(customModelPath.isEmpty)
                     }
 
                     Text("Point to a folder containing compiled Core ML models (.mlmodelc files). Convert Whisper models with [whisperkittools](https://github.com/argmaxinc/whisperkittools).")
@@ -220,6 +222,9 @@ struct SettingsView: View {
 
         if panel.runModal() == .OK, let url = panel.url {
             customModelPath = url.path
+            transcriptionEngine.customModelFolder = customModelPath
+            transcriptionEngine.modelName = "custom"
+            Task { await transcriptionEngine.loadModel() }
         }
     }
 }
