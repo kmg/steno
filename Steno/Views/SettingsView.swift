@@ -8,6 +8,9 @@ struct SettingsView: View {
     @AppStorage("defaultModel") private var defaultModel = "large-v3_turbo"
     @AppStorage("customModelPath") private var customModelPath = ""
 
+    @AppStorage("enableCrashReporting") private var enableCrashReporting = true
+    @AppStorage("enableAnalytics") private var enableAnalytics = true
+
     @State private var micPermission: AVAudioApplication.recordPermission = .undetermined
     @State private var systemAudioGranted = false
 
@@ -107,9 +110,24 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            Section("Privacy & Diagnostics") {
+                Toggle("Send Crash Reports", isOn: $enableCrashReporting)
+                Text("Sends crash data to help fix bugs. No audio, transcripts, or file paths included.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle("Usage Analytics", isOn: $enableAnalytics)
+                    .onChange(of: enableAnalytics) {
+                        Analytics.syncPostHogOptOut()
+                    }
+                Text("Sends anonymous usage events (recording duration, model used, locale) to help improve Steno. No identifying information collected.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
-        .frame(width: 500, height: 480)
+        .frame(width: 500, height: 580)
         .onAppear { refreshPermissions() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             refreshPermissions()

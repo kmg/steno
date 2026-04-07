@@ -59,6 +59,7 @@ final class RecordingManager: ObservableObject {
             pipeline.stop()
             self.error = error.localizedDescription
             logger.error("Failed to start recording: \(error)")
+            Analytics.captureError(error, context: ["action": "start_recording"])
         }
     }
 
@@ -82,6 +83,7 @@ final class RecordingManager: ObservableObject {
             sessionStore.saveTranscript(transcript, for: session)
         }
 
+        Analytics.recordingStopped(duration: duration, model: transcriptionEngine.modelName)
         logger.info("Recording stopped, duration: \(duration)s, segments: \(allSegments.count)")
 
         elapsedTime = 0

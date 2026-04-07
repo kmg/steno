@@ -52,6 +52,7 @@ struct CrashRecovery {
                 }
 
                 recoveredIDs.append(session.id)
+                Analytics.sessionRecovered(sessionID: session.id)
                 logger.info("Session recovered: \(session.id)")
             }
         }
