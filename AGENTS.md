@@ -65,6 +65,18 @@ Steno/
 - Audio-thread closures: zero `self` references, explicit local captures only
 - All cross-thread mutable state behind NSLock (not actors — NSLock can't be used in async contexts)
 
+## Action-Side-Effect Checklist
+
+Before shipping any view change, trace every user action through the full loop:
+
+1. **Every Button**: what happens on success? On failure? Does the user see both?
+2. **Every Toggle**: does the change take effect immediately? Is the system it controls notified?
+3. **Every async action**: is there a loading state? What if the view disappears mid-task?
+4. **Every onChange**: should it fire on every change, or only on commit? (TextField onChange fires per keystroke — use a button instead for expensive operations like model loading)
+5. **Every delete/remove**: does it clean up all related state (files, index, selection)?
+
+The pattern: **trigger → state change → side effect → user feedback → error path.** Most bugs are missing feedback or missing error paths.
+
 ## Thread Safety Rules
 
 Audio IO threads (mic callback, system audio IO proc) run outside any actor. Code on these threads must:
