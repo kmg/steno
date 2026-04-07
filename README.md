@@ -20,7 +20,7 @@ brew tap kmg/steno
 brew install --cask steno
 ```
 
-Or download the [latest DMG](https://github.com/kmg/steno/releases/latest) directly. Signed and notarized — just drag to Applications and open.
+Or download the [latest DMG](https://github.com/kmg/steno/releases/latest) directly.
 
 ### Permissions
 
