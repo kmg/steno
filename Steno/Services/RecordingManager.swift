@@ -77,10 +77,16 @@ final class RecordingManager: ObservableObject {
         isRecording = false
         sessionStore.finishSession(duration: duration)
 
-        if var transcript = transcriptionEngine.finalizeStreaming(allSegments: allSegments, duration: duration) {
+        if let transcript = transcriptionEngine.finalizeStreaming(allSegments: allSegments, duration: duration) {
             let audioURL = sessionStore.audioFileURL(for: session)
-            diarizationManager.applySpeakerLabels(to: &transcript, audioFileURL: audioURL)
+            // Save transcript immediately so user sees it right away
             sessionStore.saveTranscript(transcript, for: session)
+            // Run diarization in background — updates transcript when done
+            Task {
+                var labeled = transcript
+                diarizationManager.applySpeakerLabels(to: &labeled, audioFileURL: audioURL)
+                sessionStore.saveTranscript(labeled, for: session)
+            }
         }
 
         Analytics.recordingStopped(duration: duration, model: transcriptionEngine.modelName)
