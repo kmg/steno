@@ -14,6 +14,7 @@ final class RecordingManager: ObservableObject {
     private let logger = Logger(subsystem: "com.kmganesh.steno", category: "RecordingManager")
 
     private var timer: Timer?
+    private var partialSaveTimer: Timer?
     private var recordingStart: Date?
     private(set) var lastSession: Session?
     private var streamingTranscriber: StreamingTranscriber?
@@ -45,6 +46,7 @@ final class RecordingManager: ObservableObject {
             lastSession = session
             error = nil
             startTimer()
+            startPartialSaveTimer(sessionStore: sessionStore, transcriptionEngine: transcriptionEngine)
 
             transcriptionEngine.startStreaming()
             if let streamer {
@@ -72,6 +74,7 @@ final class RecordingManager: ObservableObject {
 
         pipeline.stop()
         stopTimer()
+        stopPartialSaveTimer()
 
         let duration = elapsedTime
         isRecording = false
@@ -115,5 +118,34 @@ final class RecordingManager: ObservableObject {
     private func stopTimer() {
         timer?.invalidate()
         timer = nil
+    }
+
+    // MARK: - Partial Transcript Save
+
+    private func startPartialSaveTimer(sessionStore: SessionStore, transcriptionEngine: TranscriptionEngine) {
+        partialSaveTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.savePartialTranscript(sessionStore: sessionStore, transcriptionEngine: transcriptionEngine)
+            }
+        }
+    }
+
+    private func stopPartialSaveTimer() {
+        partialSaveTimer?.invalidate()
+        partialSaveTimer = nil
+    }
+
+    private func savePartialTranscript(sessionStore: SessionStore, transcriptionEngine: TranscriptionEngine) {
+        guard let session = lastSession else { return }
+        let segments = transcriptionEngine.liveConfirmedSegments + transcriptionEngine.liveUnconfirmedSegments
+        guard !segments.isEmpty else { return }
+
+        let transcript = Transcript.from(
+            whisperSegments: segments,
+            duration: elapsedTime,
+            model: transcriptionEngine.modelName,
+            language: "en"
+        )
+        sessionStore.saveLiveTranscript(transcript, for: session)
     }
 }
