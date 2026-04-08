@@ -110,18 +110,14 @@ final class SessionStore: ObservableObject {
         sessionFolderURL(for: session).appendingPathComponent("transcript.json")
     }
 
-    func partialTranscriptURL(for session: Session) -> URL {
-        sessionFolderURL(for: session).appendingPathComponent("transcript.partial.json")
-    }
-
-    /// Save partial transcript during recording (for crash recovery).
-    func savePartialTranscript(_ transcript: Transcript, for session: Session) {
-        let url = partialTranscriptURL(for: session)
+    /// Save transcript during recording (every 10s) without updating the session index.
+    func saveLiveTranscript(_ transcript: Transcript, for session: Session) {
+        let url = transcriptURL(for: session)
         do {
             let data = try encoder.encode(transcript)
             try data.write(to: url, options: .atomic)
         } catch {
-            logger.error("Failed to write partial transcript: \(error)")
+            logger.error("Failed to write live transcript: \(error)")
         }
     }
 
