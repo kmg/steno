@@ -2,7 +2,7 @@
 
 Offline meeting transcription for Mac. No cloud, no accounts, no network calls — ever. Once the model downloads, Steno runs fully air-gapped on Apple Silicon.
 
-Record both sides of Zoom, Meet, or Teams calls. Transcribe on-device with [WhisperKit](https://github.com/argmaxinc/WhisperKit) (Whisper on Core ML). Speaker identification included. Plain files you own — no database, no proprietary format.
+Record both sides of Zoom, Meet, or Teams calls. Transcribe on-device with Whisper. Speaker identification included. Supports [99 languages](https://github.com/openai/whisper#available-models-and-languages). Plain files you own — no database, no proprietary format.
 
 ## What it does
 
