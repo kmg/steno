@@ -29,11 +29,18 @@ final class SessionStore: ObservableObject {
 
     init() {
         ensureBaseDirectory()
-        let recovered = CrashRecovery.recoverSessions(in: baseURL)
-        if !recovered.isEmpty {
-            logger.info("Recovered \(recovered.count) interrupted sessions")
-        }
         loadIndex()
+        // Crash recovery scans all session folders — run off the main thread
+        let base = baseURL
+        Task {
+            let recovered = CrashRecovery.recoverSessions(in: base)
+            if !recovered.isEmpty {
+                await MainActor.run {
+                    self.logger.info("Recovered \(recovered.count) interrupted sessions")
+                    self.loadIndex() // Reload index to pick up status changes
+                }
+            }
+        }
     }
 
     private func ensureBaseDirectory() {
