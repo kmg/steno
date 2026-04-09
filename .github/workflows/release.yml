@@ -71,6 +71,7 @@ jobs:
       - name: Sign app
         run: |
           codesign --force --options runtime \
+            --entitlements Steno/Steno.entitlements \
             --sign "${{ env.SIGNING_IDENTITY }}" \
             --keychain "${{ env.KEYCHAIN_PATH }}" \
             --deep \

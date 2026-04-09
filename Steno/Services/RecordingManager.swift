@@ -19,6 +19,8 @@ final class RecordingManager: ObservableObject {
     private(set) var lastSession: Session?
     private var streamingTranscriber: StreamingTranscriber?
     private var streamingTask: Task<Void, Never>?
+    private weak var activeSessionStore: SessionStore?
+    private weak var activeTranscriptionEngine: TranscriptionEngine?
 
     func startRecording(sessionStore: SessionStore, transcriptionEngine: TranscriptionEngine, diarizationManager: DiarizationManager) {
         guard !isRecording else { return }
@@ -46,7 +48,9 @@ final class RecordingManager: ObservableObject {
             lastSession = session
             error = nil
             startTimer()
-            startPartialSaveTimer(sessionStore: sessionStore, transcriptionEngine: transcriptionEngine)
+            activeSessionStore = sessionStore
+            activeTranscriptionEngine = transcriptionEngine
+            startPartialSaveTimer()
 
             transcriptionEngine.startStreaming()
             if let streamer {
@@ -100,6 +104,8 @@ final class RecordingManager: ObservableObject {
         streamingTranscriber = nil
         streamingTask = nil
         systemAudioActive = false
+        activeSessionStore = nil
+        activeTranscriptionEngine = nil
 
         return (session, duration)
     }
@@ -122,10 +128,10 @@ final class RecordingManager: ObservableObject {
 
     // MARK: - Partial Transcript Save
 
-    private func startPartialSaveTimer(sessionStore: SessionStore, transcriptionEngine: TranscriptionEngine) {
+    private func startPartialSaveTimer() {
         partialSaveTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.savePartialTranscript(sessionStore: sessionStore, transcriptionEngine: transcriptionEngine)
+                self?.savePartialTranscript()
             }
         }
     }
@@ -135,8 +141,10 @@ final class RecordingManager: ObservableObject {
         partialSaveTimer = nil
     }
 
-    private func savePartialTranscript(sessionStore: SessionStore, transcriptionEngine: TranscriptionEngine) {
-        guard let session = lastSession else { return }
+    private func savePartialTranscript() {
+        guard let session = lastSession,
+              let sessionStore = activeSessionStore,
+              let transcriptionEngine = activeTranscriptionEngine else { return }
         let segments = transcriptionEngine.liveConfirmedSegments + transcriptionEngine.liveUnconfirmedSegments
         guard !segments.isEmpty else { return }
 
