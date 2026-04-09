@@ -23,11 +23,6 @@ git tag v0.X.Y && git push origin v0.X.Y
 
 GitHub Actions builds DMG, creates release. Then update SHA256 in `kmg/homebrew-steno`.
 
-### CI Signing: Entitlements Are Required
-
-The release workflow signs with `codesign --options runtime` (hardened runtime). **This strips all permissions unless `--entitlements` is passed explicitly.** The entitlements file (`Steno/Steno.entitlements`) must be passed to the codesign step — without it, macOS silently denies microphone access. No error, no prompt, the app just doesn't transcribe.
-
-This broke v0.2.0–v0.2.2. The code was unchanged, the build succeeded, the app launched fine — but the core feature silently didn't work. If transcription ever stops working after a CI-only change, check entitlements first.
 
 ## Dependencies
 

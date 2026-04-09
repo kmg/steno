@@ -69,6 +69,9 @@ jobs:
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
 
       - name: Sign app
+        # IMPORTANT: --entitlements is required. Hardened runtime (--options runtime)
+        # strips all permissions without it. Missing this broke v0.2.0–v0.2.2:
+        # macOS silently denied microphone access, no error, no prompt.
         run: |
           codesign --force --options runtime \
             --entitlements Steno/Steno.entitlements \
