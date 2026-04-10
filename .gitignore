@@ -24,3 +24,6 @@ Package.resolved
 
 # Environment
 .env
+
+# Swift code coverage artifacts
+*.profraw
