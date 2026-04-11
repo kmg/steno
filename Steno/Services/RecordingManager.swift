@@ -88,11 +88,14 @@ final class RecordingManager: ObservableObject {
             let audioURL = sessionStore.audioFileURL(for: session)
             // Save transcript immediately so user sees it right away
             sessionStore.saveTranscript(transcript, for: session)
-            // Run diarization in background — updates transcript when done
-            Task {
-                var labeled = transcript
-                diarizationManager.applySpeakerLabels(to: &labeled, audioFileURL: audioURL)
-                sessionStore.saveTranscript(labeled, for: session)
+            // Run diarization off the main thread. `Task.detached` is essential —
+            // a plain `Task {}` inherits MainActor and hangs the UI for the full
+            // duration of CoreML inference (seconds to tens of seconds).
+            let dm = diarizationManager
+            let store = sessionStore
+            Task.detached {
+                let labeled = dm.applyingSpeakerLabels(to: transcript, audioFileURL: audioURL)
+                await store.saveTranscript(labeled, for: session)
             }
         }
 
