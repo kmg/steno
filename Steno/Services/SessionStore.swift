@@ -146,12 +146,18 @@ final class SessionStore: ObservableObject {
 
             // Update index entry
             if let idx = sessions.firstIndex(where: { $0.id == session.id }) {
+                let isFirstTranscribe = !sessions[idx].hasTranscript
                 sessions[idx].hasTranscript = true
                 sessions[idx].segmentCount = transcript.segments.count
                 sessions[idx].model = transcript.model
 
-                // Auto-name from first transcript text if not manually renamed
-                if let firstText = transcript.segments.first?.text, !firstText.isEmpty {
+                // Auto-name from first transcript text only on the first transcribe.
+                // Re-transcribes (and diarization second-saves) must not clobber the
+                // existing name — whether user-edited via Rename or the original
+                // auto-name from the first transcribe. This was the bug that made
+                // re-transcribe overwrite custom names.
+                if isFirstTranscribe,
+                   let firstText = transcript.segments.first?.text, !firstText.isEmpty {
                     let autoName = String(firstText.prefix(40)).trimmingCharacters(in: .whitespaces)
                     if !autoName.isEmpty {
                         sessions[idx].name = autoName
