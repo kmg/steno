@@ -5,9 +5,9 @@ import os
 /// Runs on Neural Engine. Supports up to 10 speakers, detected automatically.
 @MainActor
 final class DiarizationManager: ObservableObject {
-    private let logger = Logger(subsystem: "com.kmganesh.steno", category: "DiarizationManager")
+    nonisolated private let logger = Logger(subsystem: "com.kmganesh.steno", category: "DiarizationManager")
 
-    let mlDiarizer = MLDiarizer()
+    nonisolated let mlDiarizer = MLDiarizer()
 
     @Published var mlReady = false
 
@@ -21,11 +21,15 @@ final class DiarizationManager: ObservableObject {
         }
     }
 
-    /// Apply speaker labels to transcript segments using FluidAudio ML.
-    func applySpeakerLabels(to transcript: inout Transcript, audioFileURL: URL) {
-        guard mlReady else {
+    /// Returns a new transcript with speaker labels applied via FluidAudio ML.
+    ///
+    /// CoreML inference takes seconds and MUST run off the main thread.
+    /// Always call this from `Task.detached { ... }`, never from a main-actor
+    /// `Task { ... }` (which inherits MainActor isolation and would hang the UI).
+    nonisolated func applyingSpeakerLabels(to transcript: Transcript, audioFileURL: URL) -> Transcript {
+        guard mlDiarizer.isInitialized else {
             logger.info("Speaker identification not ready, skipping")
-            return
+            return transcript
         }
 
         do {
@@ -35,16 +39,19 @@ final class DiarizationManager: ObservableObject {
                 transcriptSegments: segments
             )
 
-            for i in transcript.segments.indices {
-                transcript.segments[i].speaker = i < result.labels.count ? result.labels[i] : nil
+            var updated = transcript
+            for i in updated.segments.indices {
+                updated.segments[i].speaker = i < result.labels.count ? result.labels[i] : nil
             }
+            updated.speakers = result.speakers
 
-            transcript.speakers = result.speakers
-            let count = transcript.segments.count
+            let count = updated.segments.count
             let speakerCount = result.speakers.count
             logger.info("Speaker identification complete: \(speakerCount) speakers, \(count) segments")
+            return updated
         } catch {
             logger.error("Speaker identification failed: \(error)")
+            return transcript
         }
     }
 }

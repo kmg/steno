@@ -150,8 +150,12 @@ struct ContentView: View {
     }
 
     private func formatTime(_ interval: TimeInterval) -> String {
+        let hours = Int(interval) / 3600
         let minutes = (Int(interval) % 3600) / 60
         let seconds = Int(interval) % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
         return String(format: "%02d:%02d", minutes, seconds)
     }
 }

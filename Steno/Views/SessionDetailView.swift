@@ -168,10 +168,14 @@ struct SessionDetailView: View {
                                                 durationSeconds: entry.durationSeconds, status: .complete
                                             )
                                             sessionStore.saveTranscript(transcript, for: s)
-                                            // Diarize in background — updates transcript when done
-                                            var labeled = transcript
-                                            diarizationManager.applySpeakerLabels(to: &labeled, audioFileURL: audioURL)
-                                            sessionStore.saveTranscript(labeled, for: s)
+                                            // Diarize off the main thread — CoreML inference would
+                                            // otherwise block the UI and prevent clicking other sessions.
+                                            let dm = diarizationManager
+                                            let store = sessionStore
+                                            Task.detached {
+                                                let labeled = dm.applyingSpeakerLabels(to: transcript, audioFileURL: audioURL)
+                                                await store.saveTranscript(labeled, for: s)
+                                            }
                                         }
                                     }
                                 }
