@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 import AVFoundation
 
 struct SettingsView: View {
+    @EnvironmentObject var sessionStore: SessionStore
     @EnvironmentObject var transcriptionEngine: TranscriptionEngine
 
     @AppStorage("defaultModel") private var defaultModel = "large-v3_turbo"
@@ -102,13 +103,20 @@ struct SettingsView: View {
                 HStack {
                     Text("Recordings folder")
                     Spacer()
-                    Text("~/Documents/Steno/")
+                    Text(sessionStore.baseURL.path.replacingOccurrences(
+                        of: FileManager.default.homeDirectoryForCurrentUser.path,
+                        with: "~"))
                         .foregroundStyle(.secondary)
-                    Button("Open") {
-                        let url = FileManager.default.homeDirectoryForCurrentUser
-                            .appendingPathComponent("Documents")
-                            .appendingPathComponent("Steno")
-                        NSWorkspace.shared.open(url)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                HStack {
+                    Spacer()
+                    Button("Open in Finder") {
+                        NSWorkspace.shared.open(sessionStore.baseURL)
+                    }
+                    Button("Change…") {
+                        browseForRecordingsFolder()
                     }
                 }
             }
@@ -210,6 +218,19 @@ struct SettingsView: View {
     private func openPrivacySettings(_ pane: String) {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_\(pane)") {
             NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func browseForRecordingsFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.message = "Choose a folder for Steno recordings"
+        panel.prompt = "Use This Folder"
+
+        if panel.runModal() == .OK, let url = panel.url {
+            sessionStore.changeBaseURL(to: url)
         }
     }
 

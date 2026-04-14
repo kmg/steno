@@ -51,6 +51,7 @@ struct StenoApp: App {
 
         Settings {
             SettingsView()
+                .environmentObject(sessionStore)
                 .environmentObject(transcriptionEngine)
                 .environmentObject(diarizationManager)
         }

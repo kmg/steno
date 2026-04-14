@@ -15,6 +15,7 @@ final class TranscriptionEngine: ObservableObject {
     }
 
     @Published var state: State = .idle
+    @Published var activeSessionID: String?
     @Published var lastTranscript: Transcript?
     @Published var liveConfirmedSegments: [TranscriptionSegment] = []
     @Published var liveUnconfirmedSegments: [TranscriptionSegment] = []
@@ -92,7 +93,8 @@ final class TranscriptionEngine: ObservableObject {
     }
 
     /// Transcribe a saved audio file (for re-transcription or non-streaming fallback).
-    func transcribe(audioPath: String, duration: Double) async -> Transcript? {
+    func transcribe(audioPath: String, duration: Double, sessionID: String? = nil) async -> Transcript? {
+        activeSessionID = sessionID
         state = .transcribing(0)
         logger.info("Transcribing: \(audioPath)")
 
@@ -120,11 +122,13 @@ final class TranscriptionEngine: ObservableObject {
             )
 
             lastTranscript = transcript
+            activeSessionID = nil
             state = .complete
             logger.info("Transcription complete: \(result.segments.count) segments")
             return transcript
 
         } catch {
+            activeSessionID = nil
             state = .error("Transcription failed: \(error.localizedDescription)")
             logger.error("Transcription failed: \(error)")
             Analytics.captureError(error, context: ["action": "transcribe_file"])

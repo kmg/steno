@@ -91,8 +91,9 @@ struct SessionDetailView: View {
 
     private func savedSessionView(sessionID: String) -> some View {
         VStack(spacing: 0) {
-            if case .transcribing(let progress) = transcriptionEngine.state {
-                // Transcription in progress — full-area feedback
+            if case .transcribing(let progress) = transcriptionEngine.state,
+               transcriptionEngine.activeSessionID == sessionID {
+                // Transcription in progress for THIS session
                 let entry = sessionStore.sessions.first { $0.id == sessionID }
                 let duration = entry?.durationSeconds ?? 0
                 let processedSeconds = Double(progress) * duration
@@ -159,7 +160,8 @@ struct SessionDetailView: View {
                                 Task {
                                     if let transcript = await transcriptionEngine.transcribe(
                                         audioPath: audioPath,
-                                        duration: entry?.durationSeconds ?? 0
+                                        duration: entry?.durationSeconds ?? 0,
+                                        sessionID: sessionID
                                     ) {
                                         if let entry {
                                             let s = Session(

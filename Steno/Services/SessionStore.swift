@@ -21,10 +21,41 @@ final class SessionStore: ObservableObject {
         return d
     }()
 
-    var baseURL: URL {
-        fileManager.homeDirectoryForCurrentUser
-            .appendingPathComponent("Documents")
-            .appendingPathComponent("Steno")
+    static let defaultBaseURL = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Documents")
+        .appendingPathComponent("Steno")
+
+    @Published var baseURL: URL = SessionStore.storedBaseURL()
+
+    static func storedBaseURL() -> URL {
+        if let path = UserDefaults.standard.string(forKey: "recordingsFolder"), !path.isEmpty {
+            return URL(fileURLWithPath: path)
+        }
+        return defaultBaseURL
+    }
+
+    func changeBaseURL(to newURL: URL) {
+        let oldURL = baseURL
+        guard newURL != oldURL else { return }
+
+        // Move existing contents to new location
+        ensureDirectory(at: newURL)
+        if let contents = try? fileManager.contentsOfDirectory(at: oldURL, includingPropertiesForKeys: nil) {
+            for item in contents {
+                let dest = newURL.appendingPathComponent(item.lastPathComponent)
+                try? fileManager.moveItem(at: item, to: dest)
+            }
+        }
+
+        UserDefaults.standard.set(newURL.path, forKey: "recordingsFolder")
+        baseURL = newURL
+        loadIndex()
+    }
+
+    private func ensureDirectory(at url: URL) {
+        if !fileManager.fileExists(atPath: url.path) {
+            try? fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+        }
     }
 
     init() {
@@ -44,14 +75,7 @@ final class SessionStore: ObservableObject {
     }
 
     private func ensureBaseDirectory() {
-        if !fileManager.fileExists(atPath: baseURL.path) {
-            do {
-                try fileManager.createDirectory(at: baseURL, withIntermediateDirectories: true)
-                logger.info("Created ~/Transcripts/")
-            } catch {
-                logger.error("Failed to create Transcripts dir: \(error)")
-            }
-        }
+        ensureDirectory(at: baseURL)
     }
 
     // MARK: - Session Lifecycle
