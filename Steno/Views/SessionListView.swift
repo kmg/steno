@@ -133,7 +133,8 @@ struct SessionListView: View {
         Task {
             if let transcript = await transcriptionEngine.transcribe(
                 audioPath: audioPath,
-                duration: session.durationSeconds ?? 0
+                duration: session.durationSeconds ?? 0,
+                sessionID: session.id
             ) {
                 let s = Session(
                     id: session.id,
