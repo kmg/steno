@@ -8,6 +8,8 @@ struct ContentView: View {
     @EnvironmentObject var updateChecker: UpdateChecker
 
     @State private var selectedSessionID: String?
+    @State private var showConsentBanner = false
+    @AppStorage("showRecordingNotice") private var showRecordingNotice = true
 
     private var showRecordingError: Binding<Bool> {
         Binding(
@@ -122,6 +124,9 @@ struct ContentView: View {
                     transcriptionEngine: transcriptionEngine,
                     diarizationManager: diarizationManager
                 )
+                if showRecordingNotice {
+                    showConsentBanner = true
+                }
             }
         } label: {
             HStack(spacing: 4) {
@@ -135,6 +140,31 @@ struct ContentView: View {
             }
         }
         .keyboardShortcut("r", modifiers: .command)
+        .popover(isPresented: $showConsentBanner, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Recording Started", systemImage: "record.circle.fill")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.red)
+                Text("Inform all participants that this meeting is being recorded.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Toggle("Don't show again", isOn: Binding(
+                        get: { !showRecordingNotice },
+                        set: { showRecordingNotice = !$0 }
+                    ))
+                    .toggleStyle(.checkbox)
+                    .font(.caption2)
+                    Spacer()
+                    Button("I've Notified Participants") { showConsentBanner = false }
+                        .controlSize(.small)
+                }
+            }
+            .padding(12)
+            .frame(width: 260)
+        }
     }
 
     private func modelSizeLabel(_ model: String) -> String {

@@ -32,6 +32,14 @@ Or download the [latest DMG](https://github.com/kmg/steno/releases/latest) direc
 - macOS 14.2+ (Sonoma)
 - Apple Silicon (M1/M2/M3/M4)
 
+## Recording Consent
+
+Steno can record audio from your microphone and system audio. **You are solely responsible for complying with all applicable recording consent laws in your jurisdiction.**
+
+Many jurisdictions require consent from all parties before recording a conversation. In the US, two-party consent states include: California, Connecticut, Florida, Illinois, Maryland, Massachusetts, Montana, New Hampshire, Oregon, Pennsylvania, Vermont, and Washington. See [18 U.S.C. 2511](https://www.law.cornell.edu/uscode/text/18/2511) for federal law.
+
+All audio is processed locally on your device. No recordings are transmitted to the developer or any third party.
+
 ## Privacy
 
 - **Audio never leaves your machine.** All transcription runs on Apple Silicon. No audio, transcript text, or file paths are ever transmitted.

@@ -11,6 +11,7 @@ struct SettingsView: View {
 
     @AppStorage("enableCrashReporting") private var enableCrashReporting = true
     @AppStorage("enableAnalytics") private var enableAnalytics = true
+    @AppStorage("showRecordingNotice") private var showRecordingNotice = true
 
     @State private var micPermission: AVAudioApplication.recordPermission = .undetermined
     @State private var systemAudioGranted = false
@@ -122,6 +123,11 @@ struct SettingsView: View {
             }
 
             Section("Privacy & Diagnostics") {
+                Toggle("Remind me to notify participants", isOn: $showRecordingNotice)
+                Text("Show a reminder when recording starts to let participants know.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 Toggle("Send Crash Reports", isOn: $enableCrashReporting)
                 Text("Sends crash data to help fix bugs. No audio, transcripts, or file paths included.")
                     .font(.caption)
