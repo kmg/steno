@@ -37,6 +37,41 @@ struct ContentView: View {
                 recordButton
             }
         }
+        .overlay(alignment: .topTrailing) {
+            if showConsentBanner {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Recording Started", systemImage: "record.circle.fill")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.red)
+                    Text("Inform all participants that this meeting is being recorded.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        Toggle("Don't show again", isOn: Binding(
+                            get: { !showRecordingNotice },
+                            set: { showRecordingNotice = !$0 }
+                        ))
+                        .toggleStyle(.checkbox)
+                        .font(.caption2)
+                        Spacer()
+                        Button("I've Notified Participants") {
+                            showConsentBanner = false
+                        }
+                        .controlSize(.small)
+                    }
+                }
+                .padding(12)
+                .frame(width: 260)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+                .padding(.top, 8)
+                .padding(.trailing, 16)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: showConsentBanner)
         .alert("Recording Error", isPresented: showRecordingError, actions: {}) {
             Text(recordingManager.error ?? "Unknown error")
         }
@@ -153,31 +188,6 @@ struct ContentView: View {
             }
         }
         .keyboardShortcut("r", modifiers: .command)
-        .popover(isPresented: $showConsentBanner, arrowEdge: .bottom) {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Recording Started", systemImage: "record.circle.fill")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.red)
-                Text("Inform all participants that this meeting is being recorded.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack {
-                    Toggle("Don't show again", isOn: Binding(
-                        get: { !showRecordingNotice },
-                        set: { showRecordingNotice = !$0 }
-                    ))
-                    .toggleStyle(.checkbox)
-                    .font(.caption2)
-                    Spacer()
-                    Button("I've Notified Participants") { showConsentBanner = false }
-                        .controlSize(.small)
-                }
-            }
-            .padding(12)
-            .frame(width: 260)
-        }
     }
 
     private func modelSizeLabel(_ model: String) -> String {
