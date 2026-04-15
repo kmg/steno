@@ -9,6 +9,7 @@ struct ContentView: View {
 
     @State private var selectedSessionID: String?
     @State private var showConsentBanner = false
+    @State private var showUpdatePopover = false
     @AppStorage("showRecordingNotice") private var showRecordingNotice = true
 
     private var showRecordingError: Binding<Bool> {
@@ -28,39 +29,12 @@ struct ContentView: View {
         .toolbar {
             ToolbarItemGroup(placement: .automatic) {
                 modelStatusView
+                if updateChecker.showBanner, let update = updateChecker.availableUpdate {
+                    updateBadge(update: update)
+                }
             }
             ToolbarItemGroup(placement: .primaryAction) {
                 recordButton
-            }
-        }
-        .safeAreaInset(edge: .top) {
-            if updateChecker.showBanner, let update = updateChecker.availableUpdate {
-                HStack {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .foregroundStyle(.blue)
-                    Text("Steno \(update.version) is available.")
-                        .font(.callout)
-                    Text("Run")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    Text("brew upgrade steno")
-                        .font(.callout.monospaced())
-                        .foregroundStyle(.blue)
-                        .textSelection(.enabled)
-                    Text("or")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    Link("download", destination: update.url)
-                        .font(.callout)
-                    Spacer()
-                    Button { updateChecker.dismiss() } label: {
-                        Image(systemName: "xmark").font(.caption)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(.blue.opacity(0.08))
             }
         }
         .alert("Recording Error", isPresented: showRecordingError, actions: {}) {
@@ -105,6 +79,45 @@ struct ContentView: View {
             }
         default:
             EmptyView()
+        }
+    }
+
+    private func updateBadge(update: UpdateChecker.UpdateInfo) -> some View {
+        Button {
+            showUpdatePopover.toggle()
+        } label: {
+            Image(systemName: "arrow.down.circle.fill")
+                .foregroundStyle(.blue)
+                .symbolRenderingMode(.hierarchical)
+        }
+        .popover(isPresented: $showUpdatePopover, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Steno \(update.version) available")
+                    .font(.callout)
+                    .fontWeight(.medium)
+                HStack(spacing: 4) {
+                    Text("brew upgrade steno")
+                        .font(.caption.monospaced())
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.blue.opacity(0.1))
+                        .cornerRadius(4)
+                        .textSelection(.enabled)
+                }
+                HStack {
+                    Link("Download DMG", destination: update.url)
+                        .font(.caption)
+                    Spacer()
+                    Button("Dismiss") {
+                        updateChecker.dismiss()
+                        showUpdatePopover = false
+                    }
+                    .font(.caption)
+                    .controlSize(.small)
+                }
+            }
+            .padding(12)
+            .frame(width: 220)
         }
     }
 
