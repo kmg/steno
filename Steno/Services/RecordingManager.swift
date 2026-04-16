@@ -52,12 +52,14 @@ final class RecordingManager: ObservableObject {
             activeTranscriptionEngine = transcriptionEngine
             startPartialSaveTimer()
 
-            transcriptionEngine.startStreaming()
             if let streamer {
+                transcriptionEngine.startStreaming()
                 streamingTask = Task.detached {
                     await streamer.start()
                 }
             }
+            // If streamer is nil (model still downloading/loading/errored),
+            // leave transcription state untouched so UI shows real status.
 
             logger.info("Recording started: \(session.id), systemAudio: \(self.systemAudioActive)")
 

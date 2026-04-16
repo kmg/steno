@@ -73,22 +73,30 @@ struct SessionDetailView: View {
                     confirmedSegments: transcriptionEngine.liveConfirmedSegments,
                     unconfirmedSegments: transcriptionEngine.liveUnconfirmedSegments
                 )
+            } else if case .downloading(let m) = transcriptionEngine.state {
+                recordingWithoutLiveView(
+                    icon: "arrow.down.circle",
+                    iconColor: .blue,
+                    headline: "Recording — model downloading",
+                    detail: "Model \(m) is downloading in the background. Audio is being saved. Transcription will run once the download completes.",
+                    showSpinner: true
+                )
+            } else if case .loading(let m) = transcriptionEngine.state {
+                recordingWithoutLiveView(
+                    icon: "hourglass",
+                    iconColor: .blue,
+                    headline: "Recording — model loading",
+                    detail: "Model \(m) is loading. Audio is being saved. Live transcription will start momentarily.",
+                    showSpinner: true
+                )
             } else if case .error = transcriptionEngine.state {
-                // Recording works, but live transcription is unavailable (no model)
-                VStack(spacing: 8) {
-                    Spacer()
-                    Image(systemName: "waveform.badge.exclamationmark")
-                        .font(.system(size: 32))
-                        .foregroundStyle(.orange)
-                    Text("Recording without live transcription")
-                        .font(.headline)
-                    Text("Audio is being saved. You can transcribe this recording later once the model is downloaded.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                    Spacer()
-                }
+                recordingWithoutLiveView(
+                    icon: "waveform.badge.exclamationmark",
+                    iconColor: .orange,
+                    headline: "Recording without live transcription",
+                    detail: "Audio is being saved. You can transcribe this recording later once the model is downloaded.",
+                    showSpinner: false
+                )
             } else {
                 VStack {
                     Spacer()
@@ -100,6 +108,33 @@ struct SessionDetailView: View {
                     Spacer()
                 }
             }
+        }
+    }
+
+    private func recordingWithoutLiveView(
+        icon: String,
+        iconColor: Color,
+        headline: String,
+        detail: String,
+        showSpinner: Bool
+    ) -> some View {
+        VStack(spacing: 8) {
+            Spacer()
+            if showSpinner {
+                ProgressView()
+                    .controlSize(.regular)
+            }
+            Image(systemName: icon)
+                .font(.system(size: 32))
+                .foregroundStyle(iconColor)
+            Text(headline)
+                .font(.headline)
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+            Spacer()
         }
     }
 
