@@ -6,6 +6,7 @@ import os
 @MainActor
 final class RecordingManager: ObservableObject {
     @Published var isRecording = false
+    @Published var isStarting = false
     @Published var elapsedTime: TimeInterval = 0
     @Published var error: String?
     @Published private(set) var systemAudioActive = false
@@ -23,51 +24,66 @@ final class RecordingManager: ObservableObject {
     private weak var activeTranscriptionEngine: TranscriptionEngine?
 
     func startRecording(sessionStore: SessionStore, transcriptionEngine: TranscriptionEngine, diarizationManager: DiarizationManager) {
-        guard !isRecording else { return }
+        guard !isRecording && !isStarting else { return }
 
         let session = sessionStore.startSession()
         let audioURL = sessionStore.audioFileURL(for: session)
+        let streamer = transcriptionEngine.makeStreamingTranscriber(sampleRate: 16000)
 
-        do {
-            let streamer = transcriptionEngine.makeStreamingTranscriber(sampleRate: 16000)
-            self.streamingTranscriber = streamer
+        // UI state: show starting spinner immediately, guard against re-click.
+        isStarting = true
+        error = nil
+        lastSession = session
+        activeSessionStore = sessionStore
+        activeTranscriptionEngine = transcriptionEngine
 
-            try pipeline.start(
-                audioURL: audioURL,
-                streamer: streamer,
-                onSegmentsUpdated: { [weak transcriptionEngine] confirmed, unconfirmed in
-                    Task { @MainActor in
-                        transcriptionEngine?.updateLiveSegments(confirmed: confirmed, unconfirmed: unconfirmed)
+        let pipeline = self.pipeline
+        let onSegmentsUpdated: @Sendable ([TranscriptionSegment], [TranscriptionSegment]) -> Void = { [weak transcriptionEngine] confirmed, unconfirmed in
+            Task { @MainActor in
+                transcriptionEngine?.updateLiveSegments(confirmed: confirmed, unconfirmed: unconfirmed)
+            }
+        }
+
+        // Core Audio setup (AudioDeviceCreateIOProcIDWithBlock) can block on XPC to
+        // coreaudiod for seconds. Do it off the main thread to prevent 2s app hangs.
+        Task {
+            do {
+                try await Task.detached {
+                    try pipeline.start(
+                        audioURL: audioURL,
+                        streamer: streamer,
+                        onSegmentsUpdated: onSegmentsUpdated
+                    )
+                }.value
+
+                // Back on main actor after pipeline.start() completes
+                self.streamingTranscriber = streamer
+                self.systemAudioActive = pipeline.systemAudioActive
+                self.recordingStart = Date()
+                self.isRecording = true
+                self.isStarting = false
+                self.startTimer()
+                self.startPartialSaveTimer()
+
+                if let streamer {
+                    transcriptionEngine.startStreaming()
+                    self.streamingTask = Task.detached {
+                        await streamer.start()
                     }
                 }
-            )
 
-            systemAudioActive = pipeline.systemAudioActive
-            isRecording = true
-            recordingStart = Date()
-            lastSession = session
-            error = nil
-            startTimer()
-            activeSessionStore = sessionStore
-            activeTranscriptionEngine = transcriptionEngine
-            startPartialSaveTimer()
-
-            if let streamer {
-                transcriptionEngine.startStreaming()
-                streamingTask = Task.detached {
-                    await streamer.start()
-                }
+                self.logger.info("Recording started: \(session.id), systemAudio: \(self.systemAudioActive)")
+            } catch {
+                pipeline.stop()
+                self.isStarting = false
+                self.isRecording = false
+                self.lastSession = nil
+                self.activeSessionStore = nil
+                self.activeTranscriptionEngine = nil
+                self.error = error.localizedDescription
+                self.logger.error("Failed to start recording: \(error)")
+                Analytics.captureError(error, context: ["action": "start_recording"])
             }
-            // If streamer is nil (model still downloading/loading/errored),
-            // leave transcription state untouched so UI shows real status.
-
-            logger.info("Recording started: \(session.id), systemAudio: \(self.systemAudioActive)")
-
-        } catch {
-            pipeline.stop()
-            self.error = error.localizedDescription
-            logger.error("Failed to start recording: \(error)")
-            Analytics.captureError(error, context: ["action": "start_recording"])
         }
     }
 

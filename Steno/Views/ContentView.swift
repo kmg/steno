@@ -178,8 +178,13 @@ struct ContentView: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: recordingManager.isRecording ? "stop.circle.fill" : "record.circle")
-                    .foregroundStyle(recordingManager.isRecording ? Color.primary : Color.red)
+                if recordingManager.isStarting {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: recordingManager.isRecording ? "stop.circle.fill" : "record.circle")
+                        .foregroundStyle(recordingManager.isRecording ? Color.primary : Color.red)
+                }
                 if recordingManager.isRecording {
                     Text(formatTime(recordingManager.elapsedTime))
                         .monospacedDigit()
@@ -187,6 +192,7 @@ struct ContentView: View {
                 }
             }
         }
+        .disabled(recordingManager.isStarting)
         .keyboardShortcut("r", modifiers: .command)
     }
 
