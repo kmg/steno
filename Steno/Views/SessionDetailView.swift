@@ -73,6 +73,22 @@ struct SessionDetailView: View {
                     confirmedSegments: transcriptionEngine.liveConfirmedSegments,
                     unconfirmedSegments: transcriptionEngine.liveUnconfirmedSegments
                 )
+            } else if case .error = transcriptionEngine.state {
+                // Recording works, but live transcription is unavailable (no model)
+                VStack(spacing: 8) {
+                    Spacer()
+                    Image(systemName: "waveform.badge.exclamationmark")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.orange)
+                    Text("Recording without live transcription")
+                        .font(.headline)
+                    Text("Audio is being saved. You can transcribe this recording later once the model is downloaded.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                    Spacer()
+                }
             } else {
                 VStack {
                     Spacer()
@@ -135,15 +151,25 @@ struct SessionDetailView: View {
                             .font(.headline)
                             .foregroundStyle(.secondary)
                     } else if case .error(let msg) = transcriptionEngine.state {
-                        Image(systemName: "exclamationmark.triangle")
+                        Image(systemName: "arrow.down.circle")
                             .font(.system(size: 36))
                             .foregroundStyle(.orange)
-                        Text("Model Error")
+                        Text("Transcription unavailable")
                             .font(.headline)
                             .foregroundStyle(.secondary)
                         Text(msg)
                             .font(.caption)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                        Button("Retry Download") {
+                            Task { await transcriptionEngine.loadModel() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .padding(.top, 4)
+                        Text("You can still record. Transcribe recordings later once the model is available.")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 40)
                     } else {

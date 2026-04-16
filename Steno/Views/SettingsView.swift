@@ -171,10 +171,16 @@ struct SettingsView: View {
                         .foregroundStyle(.orange)
                 }
             case .error(let msg):
-                Text(msg)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .lineLimit(2)
+                HStack(spacing: 6) {
+                    Text(msg)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                    Button("Retry") {
+                        Task { await transcriptionEngine.loadModel() }
+                    }
+                    .controlSize(.small)
+                }
             case .idle, .complete:
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.circle.fill")
