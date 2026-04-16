@@ -36,10 +36,13 @@ final class TranscriptionEngine: ObservableObject {
             state = .idle
             logger.info("WhisperKit model loaded: \(self.modelName)")
         } catch {
-            let description = String(describing: error)
             // WhisperKit/HuggingFace Hub: model not cached and no internet to download.
             // User environment issue, not an app bug — show actionable message, don't pollute telemetry.
-            if description.contains("offlineModeError") || description.contains("Repository not available locally") {
+            // Multiple error surfaces emit this:
+            //   - Hub.HubApi.EnvironmentError.offlineModeError (repo not available locally)
+            //   - WhisperKit.WhisperError.modelsUnavailable (wraps NSURLError)
+            //   - NSURLErrorDomain code -1009 (not connected to internet) during download
+            if Self.isOfflineModelError(error) {
                 state = .error("Model \(modelName) not downloaded. Connect to the internet for first-time setup.")
                 logger.info("Model load deferred — offline and not cached: \(self.modelName)")
             } else {
@@ -48,6 +51,30 @@ final class TranscriptionEngine: ObservableObject {
                 Analytics.captureError(error, context: ["action": "load_model", "model": modelName])
             }
         }
+    }
+
+    /// Detect "network unreachable + model not cached" — surfaces through multiple WhisperKit/Hub paths.
+    private static func isOfflineModelError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        // NSURLErrorDomain: -1009 not connected, -1020 no internet, -1200 offline
+        if nsError.domain == NSURLErrorDomain {
+            return true
+        }
+        // Walk underlying errors for NSURL network codes
+        if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError,
+           underlying.domain == NSURLErrorDomain {
+            return true
+        }
+        // String-match fallback for WhisperKit/Hub error types that wrap the network error
+        let description = String(describing: error)
+        let patterns = [
+            "offlineModeError",
+            "Repository not available locally",
+            "modelsUnavailable",
+            "Internet connection appears to be offline",
+            "No network route"
+        ]
+        return patterns.contains { description.contains($0) }
     }
 
     private func isModelCached(_ model: String) -> Bool {
