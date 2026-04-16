@@ -36,9 +36,17 @@ final class TranscriptionEngine: ObservableObject {
             state = .idle
             logger.info("WhisperKit model loaded: \(self.modelName)")
         } catch {
-            state = .error("Failed to load model: \(error.localizedDescription)")
-            logger.error("Failed to load WhisperKit: \(error)")
-            Analytics.captureError(error, context: ["action": "load_model", "model": modelName])
+            let description = String(describing: error)
+            // WhisperKit/HuggingFace Hub: model not cached and no internet to download.
+            // User environment issue, not an app bug — show actionable message, don't pollute telemetry.
+            if description.contains("offlineModeError") || description.contains("Repository not available locally") {
+                state = .error("Model \(modelName) not downloaded. Connect to the internet for first-time setup.")
+                logger.info("Model load deferred — offline and not cached: \(self.modelName)")
+            } else {
+                state = .error("Failed to load model: \(error.localizedDescription)")
+                logger.error("Failed to load WhisperKit: \(error)")
+                Analytics.captureError(error, context: ["action": "load_model", "model": modelName])
+            }
         }
     }
 
