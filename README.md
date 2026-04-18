@@ -75,6 +75,32 @@ Point any tool at this. Claude Code, Codex, a shell script, grep. The transcript
 | Speaker ID | [FluidAudio](https://github.com/FluidInference/FluidAudio) (Core ML) |
 | Storage | File system + JSON |
 
+## FAQ
+
+**Why are some lines grey during recording?**
+White text is finalized — Whisper is confident and the text won't change. Grey text is still being processed and may be revised as more audio context arrives.
+
+**When do speaker labels appear?**
+Speaker identification runs after you stop recording. The transcript shows immediately, then speaker labels and colors appear a few seconds later. This is because the speaker model needs the complete audio to accurately cluster voices.
+
+**Can I search the transcript?**
+Yes. Use Cmd+F or the search field in the toolbar. Matching text is highlighted in yellow. Use Cmd+Shift+C to copy the entire transcript.
+
+**What's the recording consent reminder?**
+A brief notice that appears when you start recording, reminding you to inform participants. You can disable it with "Don't show again" or in Settings.
+
+**What if the model hasn't downloaded yet?**
+You can still record. Audio is saved normally. Transcription will be available once the model downloads — use "Re-transcribe" from the right-click menu on any session.
+
+**Why does the first recording take longer to start?**
+On first launch, Steno sets up Core Audio and loads the transcription model into memory. Subsequent recordings start faster.
+
+**Can I change where recordings are stored?**
+Yes. Go to Settings → Storage → Change. Existing recordings are moved to the new location automatically.
+
+**Does Steno work offline?**
+Yes, once the model is downloaded. Everything runs on-device — no network needed for recording or transcription.
+
 ## Build from source
 
 ```bash
