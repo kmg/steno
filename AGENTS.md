@@ -98,6 +98,12 @@ Audio IO threads (mic callback, system audio IO proc) run outside any actor. Cod
 3. Protect shared mutable state with NSLock (AudioSharedState, AudioFileWriter, StreamingTranscriber)
 4. Keep lock-hold time minimal — do work outside the lock, lock only for reads/writes
 
+## Dependency Behavior: Read Source, Don't Guess
+
+When checking runtime behavior of a dependency (cache paths, file formats, API behavior), read the dependency's source code — don't infer from what's on disk. We shipped a buggy `isModelCached` that guessed HuggingFace cache directory names across three iterations. The actual path was deterministic in `HubApi.localRepoLocation` (swift-transformers) the whole time.
+
+**Pattern:** Pinned dependency → source is in `DerivedData/SourcePackages/checkouts/` → grep for the behavior you need → use the same logic.
+
 ## WhisperKit Notes
 
 - Model names use underscores: `large-v3_turbo` not `large-v3-turbo` (matches HuggingFace directory `openai_whisper-large-v3_turbo`)
