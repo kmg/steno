@@ -113,4 +113,4 @@ open Steno.xcodeproj
 
 ## License
 
-MIT
+[Business Source License 1.1](LICENSE) — read, study, and learn from the source code without restriction. Free for personal, non-commercial use. Converts to Apache 2.0 four years after each release.

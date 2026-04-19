@@ -77,13 +77,17 @@ final class TranscriptionEngine: ObservableObject {
         return patterns.contains { description.contains($0) }
     }
 
+    /// WhisperKit models cache at ~/Documents/huggingface/models/argmaxinc/whisperkit-coreml/
+    /// via swift-transformers HubApi (downloadBase defaults to ~/Documents/huggingface/).
+    /// The model subdirectory is named openai_whisper-{model} (e.g. openai_whisper-large-v3_turbo).
     private func isModelCached(_ model: String) -> Bool {
-        let cacheDir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".cache/huggingface/hub")
-        guard let contents = try? FileManager.default.contentsOfDirectory(
-            at: cacheDir, includingPropertiesForKeys: nil
-        ) else { return false }
-        return contents.contains { $0.lastPathComponent.contains("WhisperKit") }
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let modelDir = documents
+            .appendingPathComponent("huggingface/models/argmaxinc/whisperkit-coreml")
+        let whisperModel = "openai_whisper-\(model)"
+        return FileManager.default.fileExists(
+            atPath: modelDir.appendingPathComponent(whisperModel).path
+        )
     }
 
     /// Create a streaming transcriber using the loaded WhisperKit instance.

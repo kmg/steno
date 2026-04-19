@@ -69,7 +69,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Text("Models download from HuggingFace on first use. Cache: ~/.cache/huggingface/hub/")
+                Text("Transcription models download on first use and run locally on your Mac.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -124,7 +124,7 @@ struct SettingsView: View {
 
             Section("Privacy & Diagnostics") {
                 Toggle("Remind me to notify participants", isOn: $showRecordingNotice)
-                Text("Show a reminder when recording starts to let participants know.")
+                Text("Shows a reminder when you start recording. You are responsible for complying with recording consent laws in your jurisdiction.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 

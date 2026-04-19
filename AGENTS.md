@@ -68,6 +68,16 @@ Steno/
 - Audio-thread closures: zero `self` references, explicit local captures only
 - All cross-thread mutable state behind NSLock (not actors — NSLock can't be used in async contexts)
 
+## User-Facing Language
+
+**No technical jargon in the UI.** Users don't know what MLX, HuggingFace, tok/s, or model_type means. Rules:
+- Say "on your Mac" not "using MLX" or "via Core ML"
+- Say "downloads on first use" not "cached at ~/.cache/huggingface/hub/"
+- Model names in Settings: use friendly names not HuggingFace IDs
+- Error messages: actionable ("Connect to the internet to download") not technical ("NSURLErrorDomain -1009")
+
+Technical details belong in logs (Logger), not in user-visible text.
+
 ## Action-Side-Effect Checklist
 
 Before shipping any view change, trace every user action through the full loop:
