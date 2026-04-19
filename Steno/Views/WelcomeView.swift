@@ -95,6 +95,14 @@ struct WelcomeView: View {
                         title: "System Audio Recording",
                         detail: "For capturing calls. Grant in System Settings → Privacy & Security."
                     )
+
+                    Divider()
+
+                    noteRow(
+                        icon: "person.2.fill",
+                        title: "Recording Consent",
+                        detail: "You are responsible for notifying participants and complying with recording consent laws in your jurisdiction."
+                    )
                 }
                 .padding(4)
             }
