@@ -5,10 +5,12 @@ import AVFoundation
 struct SettingsView: View {
     @EnvironmentObject var sessionStore: SessionStore
     @EnvironmentObject var transcriptionEngine: TranscriptionEngine
+    @EnvironmentObject var summaryEngine: SummaryEngine
 
     @AppStorage("defaultModel") private var defaultModel = "large-v3_turbo"
     @AppStorage("customModelPath") private var customModelPath = ""
 
+    @AppStorage("autoSummarize") private var autoSummarize = false
     @AppStorage("enableCrashReporting") private var enableCrashReporting = true
     @AppStorage("enableAnalytics") private var enableAnalytics = true
     @AppStorage("showRecordingNotice") private var showRecordingNotice = true
@@ -70,6 +72,55 @@ struct SettingsView: View {
                 }
 
                 Text("Transcription models download on first use and run locally on your Mac.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Summarization") {
+                Picker("Model", selection: $summaryEngine.selectedModel) {
+                    ForEach(SummaryEngine.SummaryModel.allCases) { model in
+                        VStack(alignment: .leading) {
+                            Text(model.displayName)
+                            Text(model.size)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .tag(model)
+                    }
+                }
+
+                HStack {
+                    Text("Status")
+                    Spacer()
+                    if summaryEngine.isModelReady {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                            Text("Loaded")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        }
+                    } else if case .downloading(let progress) = summaryEngine.state {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text("Downloading… \(Int(progress * 100))%")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.down.circle")
+                                .foregroundStyle(.secondary)
+                            Text("Not downloaded (\(summaryEngine.selectedModel.size))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Toggle("Summarize automatically after recording", isOn: $autoSummarize)
+
+                Text("Summaries are generated locally on your Mac. The model downloads on first use.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -143,7 +194,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 500, height: 580)
+        .frame(width: 500, height: 700)
         .onAppear { refreshPermissions() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             refreshPermissions()

@@ -17,30 +17,29 @@ struct TranscriptView: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 8) {
-                ForEach(filteredSegments) { segment in
-                    SegmentRow(segment: segment, transcript: transcript, searchText: searchText)
-                }
-            }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .textSelection(.enabled)
-        .searchable(text: $searchText, placement: .toolbar, prompt: "Search transcript")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
+        VStack(spacing: 0) {
+            InlineSearchBar(
+                searchText: $searchText,
+                placeholder: "Search transcript",
+                copied: $copied,
+                onCopy: {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(fullText, forType: .string)
-                    copied = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
-                } label: {
-                    Label(copied ? "Copied" : "Copy All", systemImage: copied ? "checkmark" : "doc.on.doc")
                 }
-                .help("Copy entire transcript (⌘⇧C)")
-                .keyboardShortcut("c", modifiers: [.command, .shift])
+            )
+
+            Divider()
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(filteredSegments) { segment in
+                        SegmentRow(segment: segment, transcript: transcript, searchText: searchText)
+                    }
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .textSelection(.enabled)
         }
     }
 }

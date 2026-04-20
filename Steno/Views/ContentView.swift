@@ -5,7 +5,10 @@ struct ContentView: View {
     @EnvironmentObject var recordingManager: RecordingManager
     @EnvironmentObject var transcriptionEngine: TranscriptionEngine
     @EnvironmentObject var diarizationManager: DiarizationManager
+    @EnvironmentObject var summaryEngine: SummaryEngine
     @EnvironmentObject var updateChecker: UpdateChecker
+
+    @AppStorage("autoSummarize") private var autoSummarize = false
 
     @State private var selectedSessionID: String?
     @State private var showConsentBanner = false
@@ -165,6 +168,26 @@ struct ContentView: View {
                     diarizationManager: diarizationManager
                 ) {
                     selectedSessionID = result.session.id
+                    if autoSummarize {
+                        let sessionID = result.session.id
+                        Task {
+                            // Wait briefly for diarization to complete
+                            try? await Task.sleep(for: .seconds(2))
+                            if let transcript = sessionStore.loadTranscript(for: sessionID) {
+                                let text = await summaryEngine.summarize(transcript: transcript)
+                                if let text {
+                                    let meta = SummaryMeta(
+                                        instruction: SummaryPreset.fullSummary.instruction,
+                                        presetName: "Full Summary",
+                                        context: nil,
+                                        generated: Date(),
+                                        model: SummaryEngine.currentModelID
+                                    )
+                                    sessionStore.saveSummary(text, meta: meta, for: sessionID)
+                                }
+                            }
+                        }
+                    }
                 }
             } else {
                 recordingManager.startRecording(

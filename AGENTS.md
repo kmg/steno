@@ -30,6 +30,9 @@ GitHub Actions builds DMG, creates release. Then update SHA256 in `kmg/homebrew-
 
 - **WhisperKit** (argmaxinc/WhisperKit) — transcription via Core ML
 - **FluidAudio** (FluidInference/FluidAudio) — speaker identification via Core ML
+- **mlx-swift-lm** (ml-explore/mlx-swift-lm) — LLM inference for summarization
+- **swift-transformers** (huggingface/swift-transformers) — HuggingFace Hub + tokenizers (bridge for mlx-swift-lm)
+- **MarkdownUI** (gonzalezreal/swift-markdown-ui) — markdown rendering in summary view
 - **Sentry** (getsentry/sentry-cocoa) — crash reporting (opt-out)
 - **PostHog** (PostHog/posthog-ios) — anonymous usage analytics (opt-out)
 
@@ -45,10 +48,11 @@ Steno/
     AudioFileWriter     — AVAudioFile → AAC .m4a (NSLock-protected)
     AudioSharedState    — thread-safe buffer for audio IO threads (NSLock-protected)
     RecordingPipeline   — non-actor class owning all audio-thread work
-  Models/               — Codable data types (Session, Transcript, Speaker)
+  Models/               — Codable data types (Session, Transcript, Speaker, SummaryPreset)
   Services/
     RecordingManager    — @MainActor, holds @Published UI state only
     TranscriptionEngine — WhisperKit wrapper, model management
+    SummaryEngine       — MLX LLM wrapper, model download/load/generate, prompt builder
     StreamingTranscriber — live transcription during recording (NSLock-protected)
     Analytics           — Sentry + PostHog wrapper, event helpers
     UpdateChecker       — GitHub Releases version check
@@ -57,7 +61,20 @@ Steno/
     CrashRecovery       — recovers interrupted sessions on launch
   Views/                — SwiftUI (NavigationSplitView, MenuBarExtra, Settings)
     WelcomeView         — first-launch onboarding (model picker, permissions)
+    SummaryView         — summary display, prompt presets, context input
+    InlineSearchBar     — shared search + copy component
 ```
+
+## User-Facing Language
+
+**No technical jargon in the UI.** Users don't know what MLX, HuggingFace, tok/s, or model_type means. Rules:
+- Say "on your Mac" not "using MLX" or "via Core ML"
+- Say "downloads on first use" not "cached at ~/.cache/huggingface/hub/"
+- Show "Generated in 12.3s" not "45.2 tok/s, 384 tokens"
+- Model names in Settings: use friendly names ("Gemma 3 1B — Fast") not HuggingFace IDs
+- Error messages: actionable ("Connect to the internet to download") not technical ("NSURLErrorDomain -1009")
+
+Technical details belong in logs (Logger), not in user-visible text.
 
 ## Conventions
 

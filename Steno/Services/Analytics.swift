@@ -70,6 +70,23 @@ enum Analytics {
         ])
     }
 
+    static func summaryGenerated(model: String, durationSeconds: Double, transcriptMinutes: Int, presetName: String?) {
+        PostHogSDK.shared.capture("summary_generated", properties: [
+            "model": model,
+            "generation_seconds": Int(durationSeconds),
+            "transcript_minutes": transcriptMinutes,
+            "preset": presetName ?? "custom",
+            "locale": locale,
+        ])
+    }
+
+    static func summaryModelDownloaded(model: String) {
+        PostHogSDK.shared.capture("summary_model_downloaded", properties: [
+            "model": model,
+            "locale": locale,
+        ])
+    }
+
     // MARK: - Errors
 
     static func captureError(_ error: Error, context: [String: String] = [:]) {

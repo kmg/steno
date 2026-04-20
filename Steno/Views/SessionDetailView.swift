@@ -6,9 +6,16 @@ struct SessionDetailView: View {
     @EnvironmentObject var recordingManager: RecordingManager
     @EnvironmentObject var transcriptionEngine: TranscriptionEngine
     @EnvironmentObject var diarizationManager: DiarizationManager
+    @EnvironmentObject var summaryEngine: SummaryEngine
 
     @Binding var selectedSessionID: String?
     @State private var loadedTranscript: Transcript?
+    @State private var selectedTab: DetailTab = .transcript
+    @State private var contextText: String = ""
+
+    enum DetailTab {
+        case transcript, summary
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -38,8 +45,13 @@ struct SessionDetailView: View {
     private func loadTranscriptIfNeeded() {
         if let id = selectedSessionID {
             loadedTranscript = sessionStore.loadTranscript(for: id)
+            contextText = sessionStore.loadContext(for: id) ?? ""
+            selectedTab = .transcript
+            summaryEngine.lastSummary = nil
+            summaryEngine.state = .idle
         } else {
             loadedTranscript = nil
+            contextText = ""
         }
     }
 
@@ -164,8 +176,30 @@ struct SessionDetailView: View {
                     Spacer()
                 }
             } else if let transcript = loadedTranscript {
-                TranscriptView(transcript: transcript)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 0) {
+                    Picker("", selection: $selectedTab) {
+                        Text("Transcript").tag(DetailTab.transcript)
+                        Text("Summary").tag(DetailTab.summary)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+
+                    Divider()
+
+                    switch selectedTab {
+                    case .transcript:
+                        TranscriptView(transcript: transcript)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    case .summary:
+                        SummaryView(
+                            transcript: transcript,
+                            sessionID: sessionID,
+                            contextText: $contextText
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
             } else {
                 // No transcript yet
                 VStack(spacing: 12) {

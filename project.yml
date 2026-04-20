@@ -19,6 +19,12 @@ packages:
   PostHog:
     url: https://github.com/PostHog/posthog-ios.git
     from: "3.15.0"
+  LLMSwift:
+    url: https://github.com/eastriverlee/LLM.swift.git
+    branch: main
+  MarkdownUI:
+    url: https://github.com/gonzalezreal/swift-markdown-ui.git
+    from: "2.4.0"
 
 settings:
   base:
@@ -39,10 +45,13 @@ targets:
       - package: FluidAudio
       - package: Sentry
       - package: PostHog
+      - package: LLMSwift
+        product: LLM
+      - package: MarkdownUI
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kmganesh.steno
-        MARKETING_VERSION: "0.2.10"
+        MARKETING_VERSION: "0.3.0"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Steno/Info.plist

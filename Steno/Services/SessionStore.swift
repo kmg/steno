@@ -210,6 +210,58 @@ final class SessionStore: ObservableObject {
         }
     }
 
+    // MARK: - Summary
+
+    func saveSummary(_ markdown: String, meta: SummaryMeta, for sessionID: String) {
+        guard let entry = sessions.first(where: { $0.id == sessionID }) else { return }
+        let url = baseURL
+            .appendingPathComponent(entry.path)
+            .appendingPathComponent("summary.md")
+        do {
+            let content = meta.toFrontmatter() + "\n\n" + markdown
+            try content.write(to: url, atomically: true, encoding: .utf8)
+            if let idx = sessions.firstIndex(where: { $0.id == sessionID }) {
+                sessions[idx].hasSummary = true
+                writeIndex()
+            }
+        } catch {
+            logger.error("Failed to write summary: \(error)")
+        }
+    }
+
+    func loadSummary(for sessionID: String) -> (meta: SummaryMeta?, body: String)? {
+        guard let entry = sessions.first(where: { $0.id == sessionID }) else { return nil }
+        let url = baseURL
+            .appendingPathComponent(entry.path)
+            .appendingPathComponent("summary.md")
+        guard fileManager.fileExists(atPath: url.path),
+              let raw = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        return SummaryMeta.parse(from: raw)
+    }
+
+    // MARK: - Context
+
+    func saveContext(_ text: String, for sessionID: String) {
+        guard let entry = sessions.first(where: { $0.id == sessionID }) else { return }
+        let url = baseURL
+            .appendingPathComponent(entry.path)
+            .appendingPathComponent("context.txt")
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            logger.error("Failed to write context: \(error)")
+        }
+    }
+
+    func loadContext(for sessionID: String) -> String? {
+        guard let entry = sessions.first(where: { $0.id == sessionID }) else { return nil }
+        let url = baseURL
+            .appendingPathComponent(entry.path)
+            .appendingPathComponent("context.txt")
+        guard fileManager.fileExists(atPath: url.path) else { return nil }
+        return try? String(contentsOf: url, encoding: .utf8)
+    }
+
     // MARK: - Persistence
 
     private func writeMetadata(_ session: Session) {
