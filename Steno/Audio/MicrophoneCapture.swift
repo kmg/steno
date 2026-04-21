@@ -45,7 +45,11 @@ final class MicrophoneCapture: @unchecked Sendable {
         originalFormat = format
         logger.info("Mic format: \(format.sampleRate)Hz, \(format.channelCount)ch")
 
-        installTap(format: format, bufferHandler: bufferHandler)
+        // Pass explicit format on initial start (known good, no device transition in flight).
+        removeTapSafely()
+        engine.inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, time in
+            bufferHandler(buffer, time)
+        }
 
         engine.prepare()
         try engine.start()
@@ -86,64 +90,69 @@ final class MicrophoneCapture: @unchecked Sendable {
         engine.inputNode.removeTap(onBus: 0)
     }
 
-    private func installTap(format: AVAudioFormat, bufferHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void) {
-        removeTapSafely()
-        engine.inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, time in
-            bufferHandler(buffer, time)
-        }
-    }
-
     private func handleConfigurationChange(bufferHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void) {
         guard isCapturing else { return }
 
-        // Engine is already stopped by the system when this fires
+        // Engine is already stopped by the system when this notification fires.
         removeTapSafely()
+        converter = nil
 
-        let newFormat = engine.inputNode.outputFormat(forBus: 0)
-        guard newFormat.sampleRate > 0, newFormat.channelCount > 0 else {
-            logger.error("New audio device has invalid format, cannot restart")
-            return
+        // Pass nil for format — let the engine use the hardware's native format.
+        // Passing an explicit format triggers SetOutputFormat which throws an uncatchable
+        // NSException during device transitions (e.g. AirPods connect at 16kHz while
+        // built-in mic was 48kHz). Passing nil avoids SetOutputFormat entirely.
+        let capturedOrigFormat = originalFormat
+        let capturedLogger = logger
+
+        engine.inputNode.installTap(onBus: 0, bufferSize: 4096, format: nil) { [weak self] buffer, time in
+            guard let origFormat = capturedOrigFormat else {
+                bufferHandler(buffer, time)
+                return
+            }
+
+            let bufferFormat = buffer.format
+
+            // If buffer format matches original, pass through directly
+            if bufferFormat.sampleRate == origFormat.sampleRate && bufferFormat.channelCount == origFormat.channelCount {
+                bufferHandler(buffer, time)
+                return
+            }
+
+            // Format changed — convert to original format so writer stays coherent
+            // Lazily create converter on first buffer (we now know the actual hardware format)
+            if self?.converter == nil {
+                self?.converter = AVAudioConverter(from: bufferFormat, to: origFormat)
+                capturedLogger.info("Device changed: \(bufferFormat.sampleRate)Hz → converting to \(origFormat.sampleRate)Hz")
+            }
+
+            guard let conv = self?.converter else {
+                bufferHandler(buffer, time)
+                return
+            }
+
+            let ratio = origFormat.sampleRate / bufferFormat.sampleRate
+            let frameCapacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio)
+            guard let converted = AVAudioPCMBuffer(pcmFormat: origFormat, frameCapacity: frameCapacity) else {
+                capturedLogger.error("Failed to allocate conversion buffer")
+                return
+            }
+
+            var error: NSError?
+            conv.convert(to: converted, error: &error) { _, outStatus in
+                outStatus.pointee = .haveData
+                return buffer
+            }
+            if let error {
+                capturedLogger.error("Format conversion failed: \(error)")
+                return
+            }
+            bufferHandler(converted, time)
         }
 
-        logger.info("New mic format: \(newFormat.sampleRate)Hz, \(newFormat.channelCount)ch")
-
-        // If format changed, set up a converter so downstream (writer) keeps getting
-        // buffers in the original format it was opened with.
-        if let origFormat = originalFormat,
-           (newFormat.sampleRate != origFormat.sampleRate || newFormat.channelCount != origFormat.channelCount) {
-
-            converter = AVAudioConverter(from: newFormat, to: origFormat)
-            logger.info("Installed format converter: \(newFormat.sampleRate)Hz → \(origFormat.sampleRate)Hz")
-            inputFormat = origFormat  // downstream still sees original format
-
-            let capturedConverter = converter!
-            let capturedOrigFormat = origFormat
-            let capturedLogger = logger
-
-            engine.inputNode.installTap(onBus: 0, bufferSize: 4096, format: newFormat) { buffer, time in
-                // Convert to original format so writer doesn't break
-                let frameCapacity = AVAudioFrameCount(
-                    Double(buffer.frameLength) * capturedOrigFormat.sampleRate / newFormat.sampleRate
-                )
-                guard let converted = AVAudioPCMBuffer(pcmFormat: capturedOrigFormat, frameCapacity: frameCapacity) else {
-                    capturedLogger.error("Failed to allocate conversion buffer")
-                    return
-                }
-                var error: NSError?
-                capturedConverter.convert(to: converted, error: &error) { _, outStatus in
-                    outStatus.pointee = .haveData
-                    return buffer
-                }
-                if let error {
-                    capturedLogger.error("Format conversion failed: \(error)")
-                    return
-                }
-                bufferHandler(converted, time)
-            }
-        } else {
-            converter = nil
-            inputFormat = newFormat
-            installTap(format: newFormat, bufferHandler: bufferHandler)
+        // Read format after installing tap (reflects what the engine will actually deliver)
+        let postTapFormat = engine.inputNode.outputFormat(forBus: 0)
+        if postTapFormat.sampleRate > 0 {
+            logger.info("Post-tap format: \(postTapFormat.sampleRate)Hz, \(postTapFormat.channelCount)ch")
         }
 
         engine.prepare()
@@ -152,6 +161,8 @@ final class MicrophoneCapture: @unchecked Sendable {
             logger.info("Engine restarted after device change")
         } catch {
             logger.error("Failed to restart engine after device change: \(error)")
+            // Recording continues silently dead — audio from before the switch is preserved.
+            // Better than crashing.
         }
     }
 
