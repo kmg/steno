@@ -27,6 +27,13 @@ final class MicrophoneCapture: @unchecked Sendable {
 
     /// Start capturing microphone audio. Calls handler on the audio thread with PCM buffers.
     func start(bufferHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void) throws {
+        // Clean up any leftover state from a previous failed start. installTap throws
+        // an uncatchable NSException if a tap already exists on the bus.
+        if isCapturing {
+            stop()
+        }
+        removeTapSafely()
+
         let inputNode = engine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
 
@@ -63,7 +70,7 @@ final class MicrophoneCapture: @unchecked Sendable {
             NotificationCenter.default.removeObserver(observer)
             configObserver = nil
         }
-        engine.inputNode.removeTap(onBus: 0)
+        removeTapSafely()
         engine.stop()
         converter = nil
         originalFormat = nil
@@ -73,7 +80,14 @@ final class MicrophoneCapture: @unchecked Sendable {
 
     // MARK: - Device Change Handling
 
+    /// Remove any existing tap. Safe to call even if no tap is installed.
+    /// Prevents NSException from installTap when a tap already exists.
+    private func removeTapSafely() {
+        engine.inputNode.removeTap(onBus: 0)
+    }
+
     private func installTap(format: AVAudioFormat, bufferHandler: @escaping @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void) {
+        removeTapSafely()
         engine.inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, time in
             bufferHandler(buffer, time)
         }
@@ -83,7 +97,7 @@ final class MicrophoneCapture: @unchecked Sendable {
         guard isCapturing else { return }
 
         // Engine is already stopped by the system when this fires
-        engine.inputNode.removeTap(onBus: 0)
+        removeTapSafely()
 
         let newFormat = engine.inputNode.outputFormat(forBus: 0)
         guard newFormat.sampleRate > 0, newFormat.channelCount > 0 else {
