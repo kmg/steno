@@ -28,6 +28,11 @@ final class StreamingTranscriber: @unchecked Sendable {
     private let minBufferSeconds: Float = 1.5
     private let requiredConfirmations = 2
 
+    /// Maximum audio samples to keep in memory. WhisperKit processes in 30s windows,
+    /// so keeping more than ~90s of audio wastes memory. For a 1-hour meeting at 16kHz,
+    /// uncapped growth would reach ~230MB. This caps at ~5.8MB.
+    private let maxSamplesInMemory = 16000 * 90 // 90 seconds at 16kHz
+
     var onSegmentsUpdated: (@Sendable ([TranscriptionSegment], [TranscriptionSegment]) -> Void)?
 
     init(whisperKit: WhisperKit, sampleRate: Double) {
@@ -57,6 +62,13 @@ final class StreamingTranscriber: @unchecked Sendable {
     private func appendSamples(_ samples: [Float]) {
         lock.lock()
         _audioSamples.append(contentsOf: samples)
+        // Trim old samples to cap memory. Keep the tail (most recent audio).
+        if _audioSamples.count > maxSamplesInMemory {
+            let excess = _audioSamples.count - maxSamplesInMemory
+            _audioSamples.removeFirst(excess)
+            // Adjust lastTranscribedCount so we don't skip the retained samples
+            _lastTranscribedCount = max(0, _lastTranscribedCount - excess)
+        }
         lock.unlock()
     }
 
