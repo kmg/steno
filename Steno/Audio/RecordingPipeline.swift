@@ -14,6 +14,9 @@ final class RecordingPipeline: @unchecked Sendable {
     private let state = AudioSharedState()
     private let logger = Logger(subsystem: "com.kmganesh.steno", category: "RecordingPipeline")
 
+    /// The format used to open the file writer. All audio must match this.
+    private var recordingFormat: AVAudioFormat?
+
     private(set) var systemAudioActive = false
 
     func start(
@@ -46,7 +49,7 @@ final class RecordingPipeline: @unchecked Sendable {
         let capturedState = state
         let capturedStreamer = streamer
 
-        // Start mic with mixing
+        // Set up mic handler (but don't start yet — writer needs to be ready first)
         mic.bufferHandler = { buffer in
             capturedStreamer?.appendBuffer(buffer)
 
@@ -66,6 +69,8 @@ final class RecordingPipeline: @unchecked Sendable {
 
                     if !sysSamples.isEmpty {
                         let mixed = capturedMixer.mix(micSamples: micSamples, systemSamples: sysSamples)
+                        // Use the buffer's format — MicrophoneCapture guarantees this
+                        // matches the original recording format via its converter
                         if let mixedBuffer = RecordingPipeline.floatsToBuffer(mixed, format: buffer.format) {
                             capturedWriter.append(buffer: mixedBuffer)
                         } else {
@@ -82,12 +87,19 @@ final class RecordingPipeline: @unchecked Sendable {
             }
         }
 
+        // Start mic to get the input format
         try mic.startWithHandler()
 
         guard let format = mic.inputFormat else {
             throw MicrophoneCapture.CaptureError.invalidFormat
         }
 
+        recordingFormat = format
+
+        // Start writer AFTER we know the format.
+        // The mic is already delivering buffers, but the writer guards with isWriting
+        // so the first few buffers (~1-2 at most) are dropped. This is unavoidable
+        // since we need the mic's actual format to configure the writer.
         try writer.start(outputURL: audioURL, sourceFormat: format)
 
         // Start streaming
@@ -103,6 +115,7 @@ final class RecordingPipeline: @unchecked Sendable {
         systemCapture.stop()
         writer.finish()
         state.reset()
+        recordingFormat = nil
         systemAudioActive = false
     }
 

@@ -14,6 +14,7 @@ final class SystemAudioCapture: @unchecked Sendable {
 
     private(set) var isCapturing = false
     private(set) var captureFormat: AVAudioFormat?
+    private var deviceListenerBlock: AudioObjectPropertyListenerBlock?
 
     var bufferHandler: (@Sendable (UnsafePointer<AudioBufferList>) -> Void)?
 
@@ -124,9 +125,15 @@ final class SystemAudioCapture: @unchecked Sendable {
 
         isCapturing = true
         logger.info("System audio capture started")
+
+        // Listen for default output device changes (e.g. switching to AirPods).
+        // The global tap may stop delivering or deliver from the old device graph.
+        // On change: tear down and recreate the tap.
+        installOutputDeviceListener()
     }
 
     func stop() {
+        removeOutputDeviceListener()
         guard isCapturing else { return }
 
         if let procID = ioProcID {
@@ -146,6 +153,67 @@ final class SystemAudioCapture: @unchecked Sendable {
         tapDescription = nil
         isCapturing = false
         logger.info("System audio capture stopped")
+    }
+
+    /// Recreate the tap when the output device changes. The global stereo tap
+    /// may stop delivering audio or capture from the wrong device after a switch.
+    func restart() {
+        guard isCapturing, let handler = bufferHandler else { return }
+        logger.info("Restarting system audio capture after device change")
+        stop()
+        do {
+            bufferHandler = handler
+            try start()
+        } catch {
+            logger.error("Failed to restart system audio capture: \(error)")
+            // Non-fatal — recording continues with mic only
+        }
+    }
+
+    // MARK: - Output device change listener
+
+    private func installOutputDeviceListener() {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            self?.logger.info("Default output device changed")
+            // Slight delay to let the system settle after the switch
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.restart()
+            }
+        }
+
+        let status = AudioObjectAddPropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            nil,
+            block
+        )
+        if status == noErr {
+            deviceListenerBlock = block
+        } else {
+            logger.warning("Failed to install output device listener: \(status)")
+        }
+    }
+
+    private func removeOutputDeviceListener() {
+        guard let block = deviceListenerBlock else { return }
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        AudioObjectRemovePropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            nil,
+            block
+        )
+        deviceListenerBlock = nil
     }
 
     deinit {

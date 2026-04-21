@@ -60,6 +60,9 @@ final class AudioFileWriter: @unchecked Sendable {
     }
 
     /// Append a PCM buffer. Call from the audio tap callback.
+    /// Validates that the buffer's sample rate matches the file's processing format.
+    /// Mismatched buffers (e.g. from a failed format conversion after device change)
+    /// are dropped with a warning rather than corrupting the recording.
     func append(buffer: AVAudioPCMBuffer) {
         guard buffer.frameLength > 0 else { return }
 
@@ -68,6 +71,20 @@ final class AudioFileWriter: @unchecked Sendable {
             lock.unlock()
             return
         }
+
+        // Guard against format mismatch — a device change may produce buffers at a
+        // different sample rate if the mic's format converter failed or wasn't created.
+        let fileSR = file.processingFormat.sampleRate
+        let bufferSR = buffer.format.sampleRate
+        if abs(fileSR - bufferSR) > 1 {
+            if !_formatMismatchLogged {
+                logger.error("Buffer sample rate (\(bufferSR)) != file sample rate (\(fileSR)), dropping buffer")
+                _formatMismatchLogged = true
+            }
+            lock.unlock()
+            return
+        }
+
         do {
             try file.write(from: buffer)
         } catch {
@@ -75,6 +92,8 @@ final class AudioFileWriter: @unchecked Sendable {
         }
         lock.unlock()
     }
+
+    private var _formatMismatchLogged = false
 
     /// Finish writing.
     func finish() {
