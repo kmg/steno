@@ -2,6 +2,10 @@
 
 Native macOS transcription app. Swift/SwiftUI, Apple Silicon, macOS 14.2+.
 
+## Clean-Room Engineering
+
+All code is written from Apple's documentation, framework APIs, and first principles. Do not copy implementations from other projects. Do not reference external apps, competitors, or third-party projects in code comments, commit messages, or documentation. When solving a problem, design from the platform APIs — not by mirroring how another app does it.
+
 ## Build
 
 ```bash
