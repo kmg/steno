@@ -19,20 +19,37 @@ final class AudioFileWriter: @unchecked Sendable {
     }
 
     /// Start writing audio to the given file URL.
+    /// Tries 128kbps AAC first; if the encoder rejects that bitrate for the current
+    /// audio device (e.g. after switching to Bluetooth headphones), retries without
+    /// an explicit bitrate and lets AVFoundation pick a supported default.
     func start(outputURL: URL, sourceFormat: AVAudioFormat) throws {
-        let settings: [String: Any] = [
+        let baseSettings: [String: Any] = [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
             AVSampleRateKey: sourceFormat.sampleRate,
-            AVNumberOfChannelsKey: min(Int(sourceFormat.channelCount), 2),
-            AVEncoderBitRateKey: 128_000
+            AVNumberOfChannelsKey: min(Int(sourceFormat.channelCount), 2)
         ]
 
-        let file = try AVAudioFile(
-            forWriting: outputURL,
-            settings: settings,
-            commonFormat: sourceFormat.commonFormat,
-            interleaved: sourceFormat.isInterleaved
-        )
+        var settings = baseSettings
+        settings[AVEncoderBitRateKey] = 128_000
+
+        let file: AVAudioFile
+        do {
+            file = try AVAudioFile(
+                forWriting: outputURL,
+                settings: settings,
+                commonFormat: sourceFormat.commonFormat,
+                interleaved: sourceFormat.isInterleaved
+            )
+        } catch {
+            // Bitrate not supported for this device/format — retry without explicit bitrate
+            logger.warning("AAC 128kbps failed (\(error.localizedDescription)), retrying with default bitrate")
+            file = try AVAudioFile(
+                forWriting: outputURL,
+                settings: baseSettings,
+                commonFormat: sourceFormat.commonFormat,
+                interleaved: sourceFormat.isInterleaved
+            )
+        }
 
         lock.lock()
         audioFile = file
