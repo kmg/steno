@@ -51,8 +51,6 @@ final class RecordingPipeline: @unchecked Sendable {
 
         // Set up mic handler (but don't start yet — writer needs to be ready first)
         mic.bufferHandler = { buffer in
-            capturedStreamer?.appendBuffer(buffer)
-
             if captureSystem {
                 if !capturedState.writerStarted {
                     capturedState.callbackCount += 1
@@ -69,20 +67,23 @@ final class RecordingPipeline: @unchecked Sendable {
 
                     if !sysSamples.isEmpty {
                         let mixed = capturedMixer.mix(micSamples: micSamples, systemSamples: sysSamples)
-                        // Use the buffer's format — MicrophoneCapture guarantees this
-                        // matches the original recording format via its converter
                         if let mixedBuffer = RecordingPipeline.floatsToBuffer(mixed, format: buffer.format) {
+                            capturedStreamer?.appendBuffer(mixedBuffer)
                             capturedWriter.append(buffer: mixedBuffer)
                         } else {
+                            capturedStreamer?.appendBuffer(buffer)
                             capturedWriter.append(buffer: buffer)
                         }
                     } else {
+                        capturedStreamer?.appendBuffer(buffer)
                         capturedWriter.append(buffer: buffer)
                     }
                 } else {
+                    capturedStreamer?.appendBuffer(buffer)
                     capturedWriter.append(buffer: buffer)
                 }
             } else {
+                capturedStreamer?.appendBuffer(buffer)
                 capturedWriter.append(buffer: buffer)
             }
         }
