@@ -30,7 +30,10 @@ final class MicrophoneCapture: @unchecked Sendable {
         removeTapSafely()
 
         let inputNode = engine.inputNode
-        let format = inputNode.outputFormat(forBus: 0)
+        // Use inputFormat (hardware format), not outputFormat (tap output format).
+        // These can differ with Bluetooth devices. installTap requires the format
+        // to match the actual hardware format exactly, or it throws -10868.
+        let format = inputNode.inputFormat(forBus: 0)
 
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw CaptureError.invalidFormat
@@ -39,9 +42,6 @@ final class MicrophoneCapture: @unchecked Sendable {
         inputFormat = format
         logger.info("Mic format: \(format.sampleRate)Hz, \(format.channelCount)ch")
 
-        // ObjC exception safety: installTap throws NSException (not Swift Error)
-        // for format mismatches or duplicate taps. The removeTapSafely above prevents
-        // duplicate taps; this catches any remaining edge cases.
         try ObjCExceptionCatcher.catching {
             inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, time in
                 bufferHandler(buffer, time)
