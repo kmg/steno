@@ -6,6 +6,22 @@ Native macOS transcription app. Swift/SwiftUI, Apple Silicon, macOS 14.2+.
 
 All code is written from Apple's documentation, framework APIs, and first principles. Do not copy implementations from other projects. Do not reference external apps, competitors, or third-party projects in code comments, commit messages, or documentation. When solving a problem, design from the platform APIs — not by mirroring how another app does it.
 
+## Release Discipline
+
+Learned 2026-04-21: shipped 4 broken releases (v0.2.11–v0.2.14) in one session trying to fix a device-switch crash. A 300-line engine recovery system broke live transcription — the core feature. The actual fix was two one-liners.
+
+**Rules:**
+
+1. **Minimal fix, then stop.** Fix the reported bug. Don't rewrite the subsystem. Don't fix 15 audit issues in one commit. Ship the smallest change that addresses the crash, confirm it works, move on.
+
+2. **Test a full recording before tagging.** Not "it compiles." Not "the unit test passes." Record a real 3-minute meeting, verify transcription flows continuously, then tag. If you can't test on device, don't ship.
+
+3. **Don't bundle unrelated changes.** The streaming transcriber sliding window had nothing to do with the device-switch crash. It was an "improvement" that broke transcription at 90 seconds. One bug, one fix, one release.
+
+4. **Research before implementing, not after shipping.** We shipped the device change handler, then researched how other apps do it. Invert that order.
+
+5. **Protect the core function above all else.** Steno records and transcribes. Every change must be evaluated against: "does this break recording or transcription?" If unsure, don't ship it.
+
 ## Build
 
 ```bash
