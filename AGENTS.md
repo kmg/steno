@@ -22,6 +22,10 @@ Learned 2026-04-21: shipped 4 broken releases (v0.2.11–v0.2.14) in one session
 
 5. **Protect the core function above all else.** Steno records and transcribes. Every change must be evaluated against: "does this break recording or transcription?" If unsure, don't ship it.
 
+## Architecture Reference
+
+Before modifying any file in `Steno/Audio/` or `Steno/Services/StreamingTranscriber.swift`, read `ARCHITECTURE.md`. It documents the data flow, format invariants, thread safety rules, and what-breaks-what map. Changes that violate the invariants will produce crashes, robotic audio, or silent data loss.
+
 ## Build
 
 ```bash
