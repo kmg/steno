@@ -61,7 +61,8 @@ final class SessionStore: ObservableObject {
     init() {
         ensureBaseDirectory()
         loadIndex()
-        // Crash recovery scans all session folders — run off the main thread
+        // Crash recovery + orphaned WAV scan — run off the main thread.
+        // Does not block app launch or interfere with recording.
         let base = baseURL
         Task {
             let recovered = CrashRecovery.recoverSessions(in: base)
@@ -70,6 +71,26 @@ final class SessionStore: ObservableObject {
                     self.logger.info("Recovered \(recovered.count) interrupted sessions")
                     self.loadIndex() // Reload index to pick up status changes
                 }
+            }
+            // Convert any orphaned .wav files that lack a corresponding .m4a.
+            // Covers: app quit during conversion, conversion failure, etc.
+            await Self.convertOrphanedWAVs(in: base)
+        }
+    }
+
+    /// Scans session folders for .wav files without a corresponding .m4a
+    /// and converts them in background. Fire-and-forget, non-blocking.
+    private static func convertOrphanedWAVs(in baseURL: URL) async {
+        let fm = FileManager.default
+        guard let folders = try? fm.contentsOfDirectory(
+            at: baseURL, includingPropertiesForKeys: nil
+        ) else { return }
+
+        for folder in folders where folder.hasDirectoryPath {
+            let wav = folder.appendingPathComponent("audio.wav")
+            let m4a = folder.appendingPathComponent("audio.m4a")
+            if fm.fileExists(atPath: wav.path) && !fm.fileExists(atPath: m4a.path) {
+                await AudioConverter.convertToAAC(wavURL: wav)
             }
         }
     }
@@ -125,8 +146,18 @@ final class SessionStore: ObservableObject {
         baseURL.appendingPathComponent(session.folderName)
     }
 
+    /// URL where the writer creates the WAV during recording.
+    func recordingFileURL(for session: Session) -> URL {
+        sessionFolderURL(for: session).appendingPathComponent("audio.wav")
+    }
+
+    /// Best available audio file for playback/transcription.
+    /// Prefers .m4a (post-conversion), falls back to .wav (during recording or failed conversion).
     func audioFileURL(for session: Session) -> URL {
-        sessionFolderURL(for: session).appendingPathComponent("audio.m4a")
+        let folder = sessionFolderURL(for: session)
+        let m4a = folder.appendingPathComponent("audio.m4a")
+        if FileManager.default.fileExists(atPath: m4a.path) { return m4a }
+        return folder.appendingPathComponent("audio.wav")
     }
 
     func metadataURL(for session: Session) -> URL {
@@ -154,10 +185,12 @@ final class SessionStore: ObservableObject {
 
     func audioPath(for sessionID: String) -> String? {
         guard let entry = sessions.first(where: { $0.id == sessionID }) else { return nil }
-        return baseURL
-            .appendingPathComponent(entry.path)
-            .appendingPathComponent("audio.m4a")
-            .path
+        let folder = baseURL.appendingPathComponent(entry.path)
+        let m4a = folder.appendingPathComponent("audio.m4a")
+        if FileManager.default.fileExists(atPath: m4a.path) { return m4a.path }
+        let wav = folder.appendingPathComponent("audio.wav")
+        if FileManager.default.fileExists(atPath: wav.path) { return wav.path }
+        return nil
     }
 
     // MARK: - Transcript

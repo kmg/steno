@@ -29,6 +29,17 @@ struct CrashRecovery {
                   var session = try? decoder.decode(Session.self, from: data),
                   session.status == .recording else { continue }
 
+            // Repair WAV header if recording was interrupted — AVAudioFile
+            // writes size fields on close, so a crash leaves them at initial values.
+            let wavURL = folder.appendingPathComponent("audio.wav")
+            if fileManager.fileExists(atPath: wavURL.path) {
+                repairWAVHeader(at: wavURL)
+                // Convert recovered WAV to AAC in background
+                Task.detached {
+                    await AudioConverter.convertToAAC(wavURL: wavURL)
+                }
+            }
+
             session.status = .recovered
             session.endedAt = session.endedAt ?? Date()
 
@@ -42,5 +53,34 @@ struct CrashRecovery {
         }
 
         return recoveredIDs
+    }
+
+    /// Repair WAV/RIFF header after a crash.
+    /// AVAudioFile writes size fields (bytes 4-7 and 40-43) on close.
+    /// A crash leaves them at initial values. Fix: compute from actual file size.
+    private static func repairWAVHeader(at url: URL) {
+        guard let fh = try? FileHandle(forUpdating: url) else { return }
+        defer { try? fh.close() }
+
+        let fileSize = fh.seekToEndOfFile()
+        guard fileSize > 44 else { return }
+
+        // Verify RIFF magic bytes
+        fh.seek(toFileOffset: 0)
+        guard let magic = try? fh.read(upToCount: 4),
+              magic == Data([0x52, 0x49, 0x46, 0x46]) else { return }
+
+        var riffSize = UInt32(fileSize - 8).littleEndian
+        var dataSize = UInt32(fileSize - 44).littleEndian
+
+        // Patch RIFF chunk size (bytes 4-7)
+        fh.seek(toFileOffset: 4)
+        fh.write(Data(bytes: &riffSize, count: 4))
+
+        // Patch data subchunk size (bytes 40-43)
+        fh.seek(toFileOffset: 40)
+        fh.write(Data(bytes: &dataSize, count: 4))
+
+        logger.info("Repaired WAV header: \(url.lastPathComponent) (\(fileSize) bytes)")
     }
 }

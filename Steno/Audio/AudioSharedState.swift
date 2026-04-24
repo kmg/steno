@@ -2,6 +2,9 @@ import Foundation
 
 /// Thread-safe shared state for audio buffers between Core Audio IO thread and mic callback.
 /// Lives outside @MainActor to avoid actor isolation crashes.
+///
+/// System audio is resampled to mic rate BEFORE entering this buffer (by SystemAudioResampler).
+/// This class simply accumulates and dispenses samples — no resampling logic.
 final class AudioSharedState: @unchecked Sendable {
     private let lock = NSLock()
     private var _systemSamples: [Float] = []

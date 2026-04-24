@@ -1,8 +1,10 @@
 import AVFoundation
 import os
 
-/// Writes microphone PCM buffers to an AAC .m4a file.
+/// Writes microphone PCM buffers to a WAV (LPCM) file.
 /// Uses AVAudioFile for reliable buffer-to-file writing.
+/// WAV accepts any format/sample rate — no bitrate negotiation, no encoder errors.
+/// Post-recording conversion to AAC is handled by AudioConverter.
 ///
 /// Thread safety: `append` is called from the audio IO thread,
 /// `start`/`finish` from the main thread. Lock protects `audioFile`.
@@ -18,38 +20,25 @@ final class AudioFileWriter: @unchecked Sendable {
         return _isWriting
     }
 
-    /// Start writing audio to the given file URL.
-    /// Tries 128kbps AAC first; if the encoder rejects that bitrate for the current
-    /// audio device (e.g. after switching to Bluetooth headphones), retries without
-    /// an explicit bitrate and lets AVFoundation pick a supported default.
+    /// Start writing audio to the given file URL as WAV (LPCM).
+    /// LPCM accepts any sample rate and channel count — no encoder configuration needed.
     func start(outputURL: URL, sourceFormat: AVAudioFormat) throws {
-        let baseSettings: [String: Any] = [
-            AVFormatIDKey: kAudioFormatMPEG4AAC,
+        let settings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
             AVSampleRateKey: sourceFormat.sampleRate,
-            AVNumberOfChannelsKey: min(Int(sourceFormat.channelCount), 2)
+            AVNumberOfChannelsKey: min(Int(sourceFormat.channelCount), 2),
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false
         ]
 
-        var settings = baseSettings
-        settings[AVEncoderBitRateKey] = 128_000
-
-        let file: AVAudioFile
-        do {
-            file = try AVAudioFile(
-                forWriting: outputURL,
-                settings: settings,
-                commonFormat: sourceFormat.commonFormat,
-                interleaved: sourceFormat.isInterleaved
-            )
-        } catch {
-            // Bitrate not supported for this device/format — retry without explicit bitrate
-            logger.warning("AAC 128kbps failed (\(error.localizedDescription)), retrying with default bitrate")
-            file = try AVAudioFile(
-                forWriting: outputURL,
-                settings: baseSettings,
-                commonFormat: sourceFormat.commonFormat,
-                interleaved: sourceFormat.isInterleaved
-            )
-        }
+        let file = try AVAudioFile(
+            forWriting: outputURL,
+            settings: settings,
+            commonFormat: sourceFormat.commonFormat,
+            interleaved: sourceFormat.isInterleaved
+        )
 
         lock.lock()
         audioFile = file
@@ -108,17 +97,4 @@ final class AudioFileWriter: @unchecked Sendable {
         logger.info("Audio writer finished")
     }
 
-    enum WriterError: LocalizedError {
-        case cannotAddInput
-        case startFailed(Error?)
-
-        var errorDescription: String? {
-            switch self {
-            case .cannotAddInput:
-                return "Cannot add audio input to writer"
-            case .startFailed(let error):
-                return "Writer failed to start: \(error?.localizedDescription ?? "unknown")"
-            }
-        }
-    }
 }
