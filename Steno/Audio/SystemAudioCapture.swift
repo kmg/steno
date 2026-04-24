@@ -16,6 +16,7 @@ final class SystemAudioCapture: @unchecked Sendable {
     private(set) var captureFormat: AVAudioFormat?
     private var deviceListenerBlock: AudioObjectPropertyListenerBlock?
     private var pendingRestart: DispatchWorkItem?
+    private let restartQueue = DispatchQueue(label: "com.kmganesh.steno.sys-restart")
 
     var bufferHandler: (@Sendable (UnsafePointer<AudioBufferList>) -> Void)?
 
@@ -182,13 +183,15 @@ final class SystemAudioCapture: @unchecked Sendable {
         let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             guard let self else { return }
             self.logger.info("Default output device changed")
-            // Debounce: cancel any pending restart, schedule a new one.
-            self.pendingRestart?.cancel()
-            let work = DispatchWorkItem { [weak self] in
-                self?.restart()
+            self.restartQueue.async { [weak self] in
+                guard let self else { return }
+                self.pendingRestart?.cancel()
+                let work = DispatchWorkItem { [weak self] in
+                    self?.restart()
+                }
+                self.pendingRestart = work
+                self.restartQueue.asyncAfter(deadline: .now() + 0.5, execute: work)
             }
-            self.pendingRestart = work
-            DispatchQueue.global().asyncAfter(deadline: .now() + 0.5, execute: work)
         }
 
         let status = AudioObjectAddPropertyListenerBlock(

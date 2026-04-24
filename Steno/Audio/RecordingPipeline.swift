@@ -36,6 +36,9 @@ final class RecordingPipeline: @unchecked Sendable {
     private var systemInputFormat: AVAudioFormat?
     private var systemOutputFormat: AVAudioFormat?
 
+    /// Called when mic device change fails and recording should stop gracefully.
+    var onRecordingInterrupted: (() -> Void)?
+
     private(set) var systemAudioActive = false
 
     func start(
@@ -153,6 +156,15 @@ final class RecordingPipeline: @unchecked Sendable {
 
             // Reconfigure system audio resampling for new mic rate
             self.configureSystemResampling(micRate: newFormat.sampleRate)
+        }
+
+        // If mic restart fails (engine crash during device transition),
+        // stop recording gracefully instead of crashing.
+        mic.onDeviceChangeFailed = { [weak self] in
+            guard let self else { return }
+            self.logger.error("Mic device change failed — stopping recording gracefully")
+            self.writer.finish()
+            self.onRecordingInterrupted?()
         }
 
         // Start streaming

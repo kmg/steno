@@ -44,6 +44,22 @@ final class RecordingManager: ObservableObject {
             }
         }
 
+        // If mic restart fails during recording (device change crash),
+        // stop recording gracefully and notify user.
+        pipeline.onRecordingInterrupted = { [weak self] in
+            Task { @MainActor in
+                guard let self, self.isRecording else { return }
+                self.error = "Recording stopped — audio device changed"
+                if let result = self.stopRecording(
+                    sessionStore: sessionStore,
+                    transcriptionEngine: transcriptionEngine,
+                    diarizationManager: diarizationManager
+                ) {
+                    self.logger.info("Recording auto-stopped after device change, duration: \(result.duration)s")
+                }
+            }
+        }
+
         // Core Audio setup (AudioDeviceCreateIOProcIDWithBlock) can block on XPC to
         // coreaudiod for seconds. Do it off the main thread to prevent 2s app hangs.
         Task {
