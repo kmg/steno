@@ -1,6 +1,6 @@
 # Steno Audio Architecture
 
-Current state as of v0.2.14. This document is the reference for anyone (human or agent) modifying the audio pipeline. Read before changing files in `Steno/Audio/` or `Steno/Services/StreamingTranscriber.swift`.
+Current state as of v0.2.17 (arch v2, chunk 1). This document is the reference for anyone (human or agent) modifying the audio pipeline. Read before changing files in `Steno/Audio/` or `Steno/Services/StreamingTranscriber.swift`.
 
 ## Data Flow
 
@@ -23,23 +23,40 @@ Current state as of v0.2.14. This document is the reference for anyone (human or
 │       ▼                                                         │
 │  mic.bufferHandler closure                                      │
 │       │                                                         │
-│       ├──► StreamingTranscriber.appendBuffer(buffer)            │
-│       │    (receives MIC ONLY — not mixed)                      │
-│       │    resamples to 16kHz mono → WhisperKit                 │
+│       ├──► MicResampler.resample(buffer)                        │
+│       │    (converts to writer format if device changed)        │
 │       │                                                         │
 │       └──► if systemAudioActive:                                │
 │                consumeSystemSamples(count: frameCount)           │
+│                  ↳ resamples system audio to mic rate            │
+│                    via vDSP_vlint interpolation                  │
 │                AudioMixer.mix(mic, system) → mixedBuffer        │
+│                StreamingTranscriber.appendBuffer(mixedBuffer)    │
 │                AudioFileWriter.append(mixedBuffer)               │
 │            else:                                                │
+│                StreamingTranscriber.appendBuffer(buffer)         │
 │                AudioFileWriter.append(buffer)  ← mic only       │
 │                                                                 │
 │  AudioFileWriter                                                │
-│  writes AAC .m4a at mic's outputFormat                          │
+│  writes WAV (LPCM) at mic's outputFormat                        │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│               POST-RECORDING (background thread)                │
+│                                                                 │
+│  AudioConverter.convertToAAC(wavURL:)                           │
+│  audio.wav → audio.m4a (AAC via AVAssetExportSession)           │
+│  Deletes .wav after verified conversion                         │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Key fact:** The .m4a file has mixed audio (mic + system). Live transcription has mic only. Re-transcription from the .m4a captures both.
+**Key facts:**
+- During recording: `audio.wav` (LPCM) on disk. WAV accepts any format — no bitrate errors.
+- After recording: `audio.m4a` (AAC) replaces .wav. If conversion fails, .wav survives.
+- The .m4a/.wav file has mixed audio (mic + system).
+- Live transcription receives the mixed buffer — captures both speakers.
+- System audio is resampled to mic rate before mixing (handles Bluetooth rate differences).
+- Mic device changes mid-recording are handled: engine restarts, buffers resampled to writer format.
+- `SessionStore.audioFileURL` prefers .m4a, falls back to .wav.
 
 ## Format Invariants
 
@@ -60,15 +77,15 @@ Learned 2026-04-22: `inputFormat` caused robotic audio in v0.2.16. Reverted.
 
 The writer is opened with `mic.inputFormat` (which is `outputFormat(forBus: 0)` — see rule 1). Every buffer appended must match this format. Mismatched buffers are dropped (format validation in `append`).
 
-### 3. System audio and mic may have different sample rates
+### 3. System audio resampled to mic rate before mixing
 
-The system audio tap reports its own format (e.g., 24kHz stereo on Bluetooth, 48kHz stereo on speakers). The mixer converts system audio to mono via `samplesFromBufferList`. The pipeline then consumes `frameCount` system samples per mic callback.
+The system audio tap reports its own format (e.g., 24kHz stereo on Bluetooth, 48kHz stereo on speakers). `AudioSharedState.consumeSystemSamples` resamples system audio to match the mic's frame count using `vDSP_vlint` linear interpolation. The rate is set at recording start and updated automatically when devices change.
 
-**Hazard:** If mic is at 48kHz and system audio is at 24kHz, consuming `frameCount` system samples per `frameCount` mic samples mixes different durations of audio. This is a known limitation — proper resampling is needed for correct mixing. Current behavior: system audio plays at wrong speed when sample rates differ.
+When rates differ, the correct number of system samples is consumed (based on the rate ratio) and interpolated to the mic's frame count. This produces correctly-timed mixed audio regardless of device sample rates.
 
-### 4. AAC bitrate must be compatible with sample rate
+### 4. AAC bitrate compatibility (post-recording conversion only)
 
-128kbps AAC is not supported at all sample rates (e.g., 24kHz Bluetooth). The writer tries 128kbps first, falls back to system default.
+During recording, audio is written as WAV/LPCM — no bitrate negotiation needed. AAC encoding happens post-recording via `AudioConverter` using `AVAssetExportPresetAppleM4A`, which handles bitrate/sample rate automatically. This eliminates the class of bugs where AAC rejected certain format combinations during live recording.
 
 ### 5. installTap throws NSException, not Swift Error
 
@@ -115,17 +132,15 @@ Rules:
 | AudioMixer mixing logic | .m4a recording quality | Ducking, clipping, sample alignment all affect the recorded file. |
 | AudioSharedState timing | System audio in recording | Stale sample detection (500ms timeout) discards old system samples. Changing the timeout or removal logic affects mixing. |
 | SystemAudioCapture tap setup | System audio availability | Tap creation is fragile — permission-dependent, device-graph-dependent. Changes may silently fail. |
-| AudioFileWriter encoding settings | Recording on specific devices | AAC bitrate, sample rate, channel count must be compatible. Bluetooth devices have narrow format support. |
+| AudioFileWriter encoding settings | Recording on specific devices | Writer uses LPCM (accepts anything). Post-recording AAC conversion handles format negotiation automatically. |
 
 ## Known Limitations
 
-1. **Live transcription = mic only.** The StreamingTranscriber receives the raw mic buffer, not the mixed buffer. System audio (remote speakers in calls, YouTube, etc.) is only in the .m4a file, accessible via re-transcription.
-
-2. **No sample rate resampling in mixer.** When mic and system audio have different sample rates (common with Bluetooth), the mixer zips samples 1:1 which stretches or compresses one stream. Fix requires resampling system audio to mic rate before mixing.
-
-3. **No device change recovery.** If the mic device changes mid-recording (AirPods connect/disconnect), the engine may stop delivering buffers. The ObjC exception catcher prevents crashes but doesn't restart the engine. The recording captures whatever was recorded before the change.
+1. **Brief gap on device switch.** When mic or system audio device changes mid-recording, there's a ~200-500ms gap while the engine restarts. Audio before and after the switch is captured correctly.
 
 4. **Writer starts after mic.** First 1-2 mic callbacks (~170ms) are dropped because the writer isn't ready yet. The mic must start first to determine its format for the writer.
+
+5. **WAV crash recovery.** If the app crashes during recording, the WAV data is on disk but the RIFF header has incorrect size fields (written on close). `CrashRecovery.repairWAVHeader` patches bytes 4-7 (RIFF chunk size) and 40-43 (data subchunk size) from the actual file size. After repair, background conversion to AAC runs automatically.
 
 ## File Reference
 
@@ -134,8 +149,9 @@ Steno/Audio/
   MicrophoneCapture.swift    — AVAudioEngine mic input, installTap
   SystemAudioCapture.swift   — Core Audio Tap, aggregate device, IO proc
   AudioMixer.swift           — RMS ducking, stereo-to-mono, sample mixing
-  AudioFileWriter.swift      — AAC .m4a writer with bitrate fallback
-  AudioSharedState.swift     — NSLock ring buffer between system audio and mic callback
+  AudioFileWriter.swift      — WAV/LPCM writer (NSLock-protected)
+  AudioConverter.swift       — post-recording WAV → AAC conversion
+  AudioSharedState.swift     — NSLock ring buffer with sample rate resampling (vDSP_vlint)
   RecordingPipeline.swift    — orchestrates all of the above
   ObjCExceptionCatcher.h/.m  — NSException → NSError bridge for installTap
   HighPassFilter.swift       — not currently wired into pipeline

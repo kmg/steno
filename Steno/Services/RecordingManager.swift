@@ -27,7 +27,7 @@ final class RecordingManager: ObservableObject {
         guard !isRecording && !isStarting else { return }
 
         let session = sessionStore.startSession()
-        let audioURL = sessionStore.audioFileURL(for: session)
+        let audioURL = sessionStore.recordingFileURL(for: session)
         let streamer = transcriptionEngine.makeStreamingTranscriber(sampleRate: 16000)
 
         // UI state: show starting spinner immediately, guard against re-click.
@@ -101,6 +101,13 @@ final class RecordingManager: ObservableObject {
         let duration = elapsedTime
         isRecording = false
         sessionStore.finishSession(duration: duration)
+
+        // Convert WAV → AAC in background. Diarization proceeds using the .wav
+        // immediately; audioFileURL will prefer .m4a once conversion completes.
+        let wavURL = sessionStore.recordingFileURL(for: session)
+        Task.detached {
+            await AudioConverter.convertToAAC(wavURL: wavURL)
+        }
 
         if let transcript = transcriptionEngine.finalizeStreaming(allSegments: allSegments, duration: duration) {
             let audioURL = sessionStore.audioFileURL(for: session)

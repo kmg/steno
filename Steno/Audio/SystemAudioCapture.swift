@@ -15,6 +15,7 @@ final class SystemAudioCapture: @unchecked Sendable {
     private(set) var isCapturing = false
     private(set) var captureFormat: AVAudioFormat?
     private var deviceListenerBlock: AudioObjectPropertyListenerBlock?
+    private var isRestarting = false
 
     var bufferHandler: (@Sendable (UnsafePointer<AudioBufferList>) -> Void)?
 
@@ -158,7 +159,8 @@ final class SystemAudioCapture: @unchecked Sendable {
     /// Recreate the tap when the output device changes. The global stereo tap
     /// may stop delivering audio or capture from the wrong device after a switch.
     func restart() {
-        guard isCapturing, let handler = bufferHandler else { return }
+        guard isCapturing, !isRestarting, let handler = bufferHandler else { return }
+        isRestarting = true
         logger.info("Restarting system audio capture after device change")
         stop()
         do {
@@ -166,8 +168,8 @@ final class SystemAudioCapture: @unchecked Sendable {
             try start()
         } catch {
             logger.error("Failed to restart system audio capture: \(error)")
-            // Non-fatal — recording continues with mic only
         }
+        isRestarting = false
     }
 
     // MARK: - Output device change listener

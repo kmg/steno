@@ -127,9 +127,7 @@ struct SessionListView: View {
 
     private func retranscribe(_ session: SessionIndex.SessionEntry) {
         guard let audioPath = sessionStore.audioPath(for: session.id) else { return }
-        let audioURL = sessionStore.baseURL
-            .appendingPathComponent(session.path)
-            .appendingPathComponent("audio.m4a")
+        let audioURL = URL(fileURLWithPath: audioPath)
         Task {
             if let transcript = await transcriptionEngine.transcribe(
                 audioPath: audioPath,
@@ -153,6 +151,12 @@ struct SessionListView: View {
                 Task.detached {
                     let labeled = dm.applyingSpeakerLabels(to: transcript, audioFileURL: audioURL)
                     await store.saveTranscript(labeled, for: s)
+
+                    // Convert .wav → .m4a after transcription + diarization are done
+                    // reading the file. Safe to trash the .wav now.
+                    if audioURL.pathExtension == "wav" {
+                        await AudioConverter.convertToAAC(wavURL: audioURL)
+                    }
                 }
             }
         }
