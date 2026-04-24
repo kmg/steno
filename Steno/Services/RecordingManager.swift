@@ -118,26 +118,34 @@ final class RecordingManager: ObservableObject {
         isRecording = false
         sessionStore.finishSession(duration: duration)
 
-        // Convert WAV → AAC in background. Diarization proceeds using the .wav
-        // immediately; audioFileURL will prefer .m4a once conversion completes.
-        let wavURL = sessionStore.recordingFileURL(for: session)
-        Task.detached {
-            await AudioConverter.convertToAAC(wavURL: wavURL)
+        // Save live transcript immediately so user sees it right away
+        if let transcript = transcriptionEngine.finalizeStreaming(allSegments: allSegments, duration: duration) {
+            sessionStore.saveTranscript(transcript, for: session)
         }
 
-        if let transcript = transcriptionEngine.finalizeStreaming(allSegments: allSegments, duration: duration) {
-            let audioURL = sessionStore.audioFileURL(for: session)
-            // Save transcript immediately so user sees it right away
-            sessionStore.saveTranscript(transcript, for: session)
-            // Run diarization off the main thread. `Task.detached` is essential —
-            // a plain `Task {}` inherits MainActor and hangs the UI for the full
-            // duration of CoreML inference (seconds to tens of seconds).
-            let dm = diarizationManager
-            let store = sessionStore
-            Task.detached {
-                let labeled = dm.applyingSpeakerLabels(to: transcript, audioFileURL: audioURL)
-                await store.saveTranscript(labeled, for: session)
-            }
+        // Background pipeline: convert → retranscribe → diarize.
+        // The retranscription from the merged m4a captures both speakers,
+        // fills gaps from device switches, and is higher quality than live streaming.
+        let wavURL = sessionStore.recordingFileURL(for: session)
+        let te = transcriptionEngine
+        let dm = diarizationManager
+        let store = sessionStore
+        Task.detached {
+            // 1. Merge WAV segments → m4a
+            await AudioConverter.convertToAAC(wavURL: wavURL)
+
+            // 2. Retranscribe from the complete audio file
+            guard let audioPath = await store.audioPath(for: session.id) else { return }
+            let audioURL = URL(fileURLWithPath: audioPath)
+            guard let transcript = await te.transcribe(
+                audioPath: audioPath,
+                duration: duration,
+                sessionID: session.id
+            ) else { return }
+
+            // 3. Diarize (speaker identification) on the retranscribed segments
+            let labeled = dm.applyingSpeakerLabels(to: transcript, audioFileURL: audioURL)
+            await store.saveTranscript(labeled, for: session)
         }
 
         Analytics.recordingStopped(duration: duration, model: transcriptionEngine.modelName)
