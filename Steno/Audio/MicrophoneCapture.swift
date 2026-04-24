@@ -13,7 +13,7 @@ final class MicrophoneCapture: @unchecked Sendable {
     private(set) var isCapturing = false
     private(set) var inputFormat: AVAudioFormat?
     private var deviceListenerBlock: AudioObjectPropertyListenerBlock?
-    private var isRestarting = false
+    private var pendingRestart: DispatchWorkItem?
 
     /// Stored handler for use with RecordingPipeline
     var bufferHandler: (@Sendable (AVAudioPCMBuffer) -> Void)?
@@ -53,31 +53,39 @@ final class MicrophoneCapture: @unchecked Sendable {
 
         for (name, getFormat) in strategies {
             engine = AVAudioEngine()
-            _ = engine.mainMixerNode
-            let inputNode = engine.inputNode
 
-            let format = getFormat(engine)
-
+            // Wrap entire engine setup in exception catcher.
+            // AVAudioEngine can throw NSException from inputNode/mainMixerNode
+            // access during device transitions (documented AVAudioEngine bug).
             do {
+                var capturedFormat: AVAudioFormat?
                 try ObjCExceptionCatcher.catching {
+                    _ = self.engine.mainMixerNode
+                    let inputNode = self.engine.inputNode
+                    let format = getFormat(self.engine)
+
                     inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, time in
                         bufferHandler(buffer, time)
                     }
+
+                    let actualFormat = inputNode.outputFormat(forBus: 0)
+                    if actualFormat.sampleRate > 0, actualFormat.channelCount > 0 {
+                        capturedFormat = actualFormat
+                    }
                 }
+
+                guard let actualFormat = capturedFormat else {
+                    logger.warning("Invalid format after installTap with \(name)")
+                    engine.inputNode.removeTap(onBus: 0)
+                    continue
+                }
+
+                inputFormat = actualFormat
+                logger.info("Mic format (\(name)): \(actualFormat.sampleRate)Hz, \(actualFormat.channelCount)ch")
             } catch {
-                logger.warning("installTap failed with \(name): \(error.localizedDescription)")
+                logger.warning("Engine setup failed with \(name): \(error.localizedDescription)")
                 continue
             }
-
-            let actualFormat = inputNode.outputFormat(forBus: 0)
-            guard actualFormat.sampleRate > 0, actualFormat.channelCount > 0 else {
-                logger.warning("Invalid format after installTap with \(name)")
-                inputNode.removeTap(onBus: 0)
-                continue
-            }
-
-            inputFormat = actualFormat
-            logger.info("Mic format (\(name)): \(actualFormat.sampleRate)Hz, \(actualFormat.channelCount)ch")
 
             engine.prepare()
             try engine.start()
@@ -92,8 +100,7 @@ final class MicrophoneCapture: @unchecked Sendable {
 
     /// Restart mic capture after a device change (e.g., AirPods connected mid-recording).
     private func restart() {
-        guard isCapturing, !isRestarting, let handler = bufferHandler else { return }
-        isRestarting = true
+        guard isCapturing, let handler = bufferHandler else { return }
         let changeCallback = onDeviceChange
         logger.info("Restarting mic capture after device change")
         stop()
@@ -107,7 +114,6 @@ final class MicrophoneCapture: @unchecked Sendable {
         } catch {
             logger.error("Failed to restart mic after device change: \(error.localizedDescription)")
         }
-        isRestarting = false
     }
 
     func stop() {
@@ -134,11 +140,16 @@ final class MicrophoneCapture: @unchecked Sendable {
         )
 
         let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-            guard let self, !self.isRestarting else { return }
+            guard let self else { return }
             self.logger.info("Default input device changed")
-            DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            // Debounce: cancel any pending restart, schedule a new one.
+            // Multiple notifications within 500ms collapse to a single restart.
+            self.pendingRestart?.cancel()
+            let work = DispatchWorkItem { [weak self] in
                 self?.restart()
             }
+            self.pendingRestart = work
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.5, execute: work)
         }
 
         let status = AudioObjectAddPropertyListenerBlock(

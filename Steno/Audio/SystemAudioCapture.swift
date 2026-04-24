@@ -15,7 +15,7 @@ final class SystemAudioCapture: @unchecked Sendable {
     private(set) var isCapturing = false
     private(set) var captureFormat: AVAudioFormat?
     private var deviceListenerBlock: AudioObjectPropertyListenerBlock?
-    private var isRestarting = false
+    private var pendingRestart: DispatchWorkItem?
 
     var bufferHandler: (@Sendable (UnsafePointer<AudioBufferList>) -> Void)?
 
@@ -159,8 +159,7 @@ final class SystemAudioCapture: @unchecked Sendable {
     /// Recreate the tap when the output device changes. The global stereo tap
     /// may stop delivering audio or capture from the wrong device after a switch.
     func restart() {
-        guard isCapturing, !isRestarting, let handler = bufferHandler else { return }
-        isRestarting = true
+        guard isCapturing, let handler = bufferHandler else { return }
         logger.info("Restarting system audio capture after device change")
         stop()
         do {
@@ -169,7 +168,6 @@ final class SystemAudioCapture: @unchecked Sendable {
         } catch {
             logger.error("Failed to restart system audio capture: \(error)")
         }
-        isRestarting = false
     }
 
     // MARK: - Output device change listener
@@ -182,11 +180,15 @@ final class SystemAudioCapture: @unchecked Sendable {
         )
 
         let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-            self?.logger.info("Default output device changed")
-            // Slight delay to let the system settle after the switch
-            DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self else { return }
+            self.logger.info("Default output device changed")
+            // Debounce: cancel any pending restart, schedule a new one.
+            self.pendingRestart?.cancel()
+            let work = DispatchWorkItem { [weak self] in
                 self?.restart()
             }
+            self.pendingRestart = work
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.5, execute: work)
         }
 
         let status = AudioObjectAddPropertyListenerBlock(
