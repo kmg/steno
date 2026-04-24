@@ -13,14 +13,20 @@ final class MicrophoneCapture: @unchecked Sendable {
     private(set) var isCapturing = false
     private(set) var inputFormat: AVAudioFormat?
     private var deviceListenerBlock: AudioObjectPropertyListenerBlock?
-    private var pendingRestart: DispatchWorkItem?
+
+    /// Serial queue for device change handling. All pendingRestart access is serialized here
+    /// to prevent use-after-free from concurrent Core Audio listener callbacks.
+    private let restartQueue = DispatchQueue(label: "com.kmganesh.steno.mic-restart")
+    private var pendingRestart: DispatchWorkItem?  // only accessed on restartQueue
 
     /// Stored handler for use with RecordingPipeline
     var bufferHandler: (@Sendable (AVAudioPCMBuffer) -> Void)?
 
     /// Called after mic restarts due to device change. Passes the new format.
-    /// RecordingPipeline uses this to start a new WAV segment at the new format.
     var onDeviceChange: ((AVAudioFormat) -> Void)?
+
+    /// Called when mic restart fails. Pipeline should stop recording gracefully.
+    var onDeviceChangeFailed: (() -> Void)?
 
     /// Start using stored bufferHandler
     func startWithHandler() throws {
@@ -98,21 +104,25 @@ final class MicrophoneCapture: @unchecked Sendable {
         throw CaptureError.invalidFormat
     }
 
-    /// Restart mic capture after a device change (e.g., AirPods connected mid-recording).
+    /// Restart mic capture after a device change.
+    /// If restart fails, calls onDeviceChangeFailed so the pipeline can stop gracefully.
     private func restart() {
         guard isCapturing, let handler = bufferHandler else { return }
         let changeCallback = onDeviceChange
+        let failCallback = onDeviceChangeFailed
         logger.info("Restarting mic capture after device change")
         stop()
         do {
             bufferHandler = handler
             onDeviceChange = changeCallback
+            onDeviceChangeFailed = failCallback
             try startWithHandler()
             if let newFormat = inputFormat {
                 changeCallback?(newFormat)
             }
         } catch {
-            logger.error("Failed to restart mic after device change: \(error.localizedDescription)")
+            logger.error("Mic restart failed: \(error.localizedDescription). Stopping recording.")
+            failCallback?()
         }
     }
 
@@ -142,14 +152,20 @@ final class MicrophoneCapture: @unchecked Sendable {
         let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             guard let self else { return }
             self.logger.info("Default input device changed")
-            // Debounce: cancel any pending restart, schedule a new one.
-            // Multiple notifications within 500ms collapse to a single restart.
-            self.pendingRestart?.cancel()
-            let work = DispatchWorkItem { [weak self] in
-                self?.restart()
+            // Serialize on restartQueue. The listener callback runs on Core Audio's
+            // thread — all mutable state access must happen on our queue.
+            self.restartQueue.async { [weak self] in
+                guard let self else { return }
+                self.pendingRestart?.cancel()
+                let work = DispatchWorkItem { [weak self] in
+                    self?.restart()
+                }
+                self.pendingRestart = work
+                // 2 second delay: let CoreAudio finish its internal aggregate device
+                // reconfiguration (especially AirPods HFP negotiation) before we
+                // create a fresh engine. Shorter delays race with the system.
+                self.restartQueue.asyncAfter(deadline: .now() + 2.0, execute: work)
             }
-            self.pendingRestart = work
-            DispatchQueue.global().asyncAfter(deadline: .now() + 0.5, execute: work)
         }
 
         let status = AudioObjectAddPropertyListenerBlock(
@@ -164,6 +180,10 @@ final class MicrophoneCapture: @unchecked Sendable {
     }
 
     private func removeInputDeviceListener() {
+        // Cancel any pending restart. No sync needed — either we're already on
+        // restartQueue (called from restart→stop) or recording is ending (no races).
+        pendingRestart?.cancel()
+        pendingRestart = nil
         guard let block = deviceListenerBlock else { return }
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultInputDevice,
