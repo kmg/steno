@@ -29,7 +29,7 @@ Or download the [latest DMG](https://github.com/kmg/steno/releases/latest) direc
 
 ## Requirements
 
-- macOS 14.2+ (Sonoma)
+- macOS 15.0+ (Sequoia)
 - Apple Silicon (M1/M2/M3/M4)
 
 ## Recording Consent
@@ -69,7 +69,7 @@ Point any tool at this. Claude Code, Codex, a shell script, grep. The transcript
 |-----------|-----------|
 | Language | Swift |
 | UI | SwiftUI |
-| System audio | Core Audio Taps (macOS 14.2+) |
+| System audio | Core Audio Taps |
 | Microphone | AVAudioEngine |
 | Transcription | [WhisperKit](https://github.com/argmaxinc/WhisperKit) (Core ML, Neural Engine) |
 | Speaker ID | [FluidAudio](https://github.com/FluidInference/FluidAudio) (Core ML) |

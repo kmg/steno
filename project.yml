@@ -2,7 +2,7 @@ name: Steno
 options:
   bundleIdPrefix: com.kmganesh
   deploymentTarget:
-    macOS: "14.2"
+    macOS: "15.0"
   xcodeVersion: "16.0"
   generateEmptyDirectories: true
 

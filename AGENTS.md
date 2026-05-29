@@ -1,6 +1,6 @@
 # Steno
 
-Native macOS transcription app. Swift/SwiftUI, Apple Silicon, macOS 14.2+.
+Native macOS transcription app. Swift/SwiftUI, Apple Silicon, macOS 15.0+.
 
 ## Clean-Room Engineering
 
@@ -64,7 +64,7 @@ Steno/
   StenoApp.swift        — app entry point, first-launch gating
   Audio/
     MicrophoneCapture   — AVAudioEngine input tap
-    SystemAudioCapture  — Core Audio Taps (macOS 14.2+)
+    SystemAudioCapture  — Core Audio Taps
     AudioMixer          — RMS ducking, clipping prevention
     AudioFileWriter     — AVAudioFile → AAC .m4a (NSLock-protected)
     AudioSharedState    — thread-safe buffer for audio IO threads (NSLock-protected)
