@@ -47,7 +47,7 @@ git tag v0.X.Y && git push origin v0.X.Y
 
 GitHub Actions builds DMG, creates release. Then update SHA256 in `kmg/homebrew-steno`.
 
-**Notarization auth: App Store Connect API key, not app-specific passwords.** Secrets: `APPLE_API_KEY_P8`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID`. See `meta/macos-ci-notarization.md` learned the hard way when v0.2.4 was blocked by an Apple ID account-recovery flow that invalidated all app-specific passwords. API keys are tied to the team, not the personal Apple ID, and survive an Apple ID lock.
+**Notarization auth: App Store Connect API key, not app-specific passwords.** Secrets: `APPLE_API_KEY_P8`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID`. Learned the hard way when v0.2.4 was blocked by an Apple ID account-recovery flow that invalidated all app-specific passwords. API keys are tied to the team, not the personal Apple ID, and survive an Apple ID lock.
 
 
 ## Dependencies
