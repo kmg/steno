@@ -24,8 +24,15 @@ Learned 2026-04-21: shipped 4 broken releases (v0.2.11–v0.2.14) in one session
 
 ## Read first
 
+- `docs/specs/spec.md` — product spec (living document). What Steno is and isn't, what the user pitch is. Update when behavioral changes affect user-visible surface.
 - `docs/adr/` — architecture decision records (MADR format). Read [0001](docs/adr/0001-record-architecture-decisions.md) and [0002](docs/adr/0002-madr-format.md) for the system; read [0004](docs/adr/0004-audio-architecture-v2.md), [0005](docs/adr/0005-release-discipline.md), and [0006](docs/adr/0006-v0.1.x-retroactive-decisions.md) before touching anything substantive.
 - `ARCHITECTURE.md` — data flow, format invariants, what-breaks-what map. Required reading before editing `Steno/Audio/` or `Steno/Services/StreamingTranscriber.swift`.
+
+## Bidirectional spec discipline
+
+`docs/specs/spec.md` is a **bidirectional** document: when implementation reveals a constraint the spec didn't anticipate, update the spec. When a behavioral change affects user-visible surface (recording flow, UI controls, transcript format), update the spec in the same commit as the code. Pure refactors, internal logging changes, and dependency bumps don't need spec updates.
+
+The spec is the source of truth for "what Steno is supposed to do." ADRs are for "why we chose this implementation." ARCHITECTURE.md is for "how the audio pipeline currently works." Three different surfaces — keep them distinct.
 
 ## Architecture Reference
 
