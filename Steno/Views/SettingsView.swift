@@ -31,9 +31,12 @@ struct SettingsView: View {
 
             DebugTabView()
                 .tabItem { Label("Debug", systemImage: "ladybug") }
-                .frame(minWidth: 700, minHeight: 480)
         }
-        .frame(minWidth: 540)
+        // Settings window is sized to fit the larger of the two tabs.
+        // Debug needs ~720pt to show 5 subsystem cells + filter chips +
+        // Level picker without clipping; height needs to leave room for
+        // the action bar at the bottom.
+        .frame(minWidth: 720, minHeight: 600)
     }
 
     private var generalTab: some View {
@@ -155,7 +158,9 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 500, height: 580)
+        // Relaxed from a hard frame so the TabView's outer .frame(minWidth:720)
+        // can stretch the window to fit the Debug tab without clipping.
+        .frame(minWidth: 500, minHeight: 580)
         .onAppear { refreshPermissions() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             refreshPermissions()

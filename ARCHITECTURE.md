@@ -149,7 +149,7 @@ Steno/Audio/
   MicrophoneCapture.swift    — AVAudioEngine mic input, installTap
   SystemAudioCapture.swift   — Core Audio Tap, aggregate device, IO proc
   AudioMixer.swift           — RMS ducking, stereo-to-mono, sample mixing
-  AudioFileWriter.swift      — WAV/LPCM writer (NSLock-protected)
+  AudioFileWriter.swift      — WAV/LPCM writer with instrumentation (frame counter, drop counter, ~10s heartbeat, finish-time empty-WAV error). NSLock-protected. See ADR-0011.
   AudioConverter.swift       — post-recording WAV → AAC conversion
   AudioSharedState.swift     — NSLock ring buffer with sample rate resampling (vDSP_vlint)
   RecordingPipeline.swift    — orchestrates all of the above
