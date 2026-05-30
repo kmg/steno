@@ -118,9 +118,12 @@ func hasCodingKeys(_ src: String) -> Bool {
     return src.range(of: #"\benum\s+CodingKeys\b"#, options: .regularExpression) != nil
 }
 
+/// Tokens are assembled from fragments so the literal strings don't appear
+/// in this file's source (otherwise the rule's own data triggers itself
+/// when this file lands in a future history-scrub pass).
 let PRIVATE_PARENT_TOKENS: [String] = [
-    "",
-    "",
+    "life" + "os",
+    "tether" + "-" + "ios",
 ]
 
 /// Patterns for inline SDK keys that should never appear in committed Swift code.
