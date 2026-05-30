@@ -78,9 +78,7 @@ The Debug tab (Settings → Debug) shows live application events grouped by subs
 | Shortcut | Action |
 |---|---|
 | ⌘R | Start / stop recording |
-| ⌘F | Search sessions (focus the sidebar search field) |
 | ⌘⇧C | Copy entire transcript |
-| ⌘⌃S | Toggle sidebar |
 | ⌘, | Settings |
 | ⌘Q | Quit |
 

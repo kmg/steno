@@ -15,7 +15,27 @@ struct StenoApp: App {
             "enableCrashReporting": true,
             "enableAnalytics": true,
         ])
+        Self.resetToolbarStateIfNeeded()
         Analytics.configure()
+    }
+
+    /// One-time toolbar/window state reset per app version.
+    /// v0.2.22 launches crashed inside `NSToolbar _insertNewItemWithItemIdentifier`
+    /// when AppKit tried to restore a serialized toolbar layout from a previous
+    /// version that referenced item identifiers no longer present (the
+    /// .searchable move + new toolbar items in v0.2.22 changed the layout shape).
+    /// Wipe the persisted toolbar state once per version to force a clean
+    /// rebuild — small UX cost (toolbar customization resets), big crash fix.
+    private static func resetToolbarStateIfNeeded() {
+        let versionKey = "stenoToolbarStateResetVersion"
+        let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+        let lastReset = UserDefaults.standard.string(forKey: versionKey)
+        guard lastReset != currentVersion else { return }
+        for key in UserDefaults.standard.dictionaryRepresentation().keys
+            where key.contains("NSToolbar") {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+        UserDefaults.standard.set(currentVersion, forKey: versionKey)
     }
 
     var body: some Scene {
