@@ -1,0 +1,67 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Allow manual runs from the Actions tab.
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: macos-15
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      # Tests don't need real SDK keys — an empty xcconfig satisfies
+      # project.yml's configFiles reference. Analytics.swift no-ops when
+      # the keys are empty.
+      - name: Stub Steno.xcconfig
+        run: |
+          echo "POSTHOG_API_KEY =" > Steno.xcconfig
+          echo "SENTRY_DSN =" >> Steno.xcconfig
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Resolve packages
+        run: |
+          xcodebuild -project Steno.xcodeproj \
+            -scheme Steno \
+            -resolvePackageDependencies
+
+      # Linter runs first — cheap, catches structural rule violations
+      # before the long build step. Includes no-private-parent-ref and
+      # no-inline-sdk-key as defense against accidental commits.
+      - name: Lint
+        run: ./tools/lint-steno.swift Steno/ StenoTests/ docs/
+
+      # Debug build catches the same class of macOS-availability errors
+      # that broke v0.2.17 the first time (caught locally on Xcode 16+,
+      # missed by Release CI until a tag push). Building here means a
+      # push to main fails fast if availability annotations drift.
+      - name: Build (Debug)
+        run: |
+          xcodebuild -project Steno.xcodeproj \
+            -scheme Steno \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            build \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project Steno.xcodeproj \
+            -scheme Steno \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO

@@ -190,3 +190,7 @@ Use asset catalog only — no `.icns` file, no `CFBundleIconFile` in Info.plist.
 - `macos-15` runner with `sudo xcode-select -s /Applications/Xcode_16.2.app`
 - `xcodebuild -resolvePackageDependencies` step before build
 - Enable Settings → Actions → General → Workflow permissions → Read and write
+
+**Required repo secrets (one-time setup):** `POSTHOG_API_KEY` and `SENTRY_DSN`. The release workflow writes them into `Steno.xcconfig` so the shipped DMG carries the SDK keys in its Info.plist. If a secret is missing, production builds ship with empty values and `Analytics.swift` no-ops the SDK init — graceful degradation, no crash. See [ADR-0010](docs/adr/0010-ci-test-workflow.md).
+
+**Push-time CI** runs `tools/lint-steno.swift` + Debug build + `xcodebuild test` on every push to main and PR. Started 2026-05-29 after the v0.2.17 build-fail-post-tag incident. See [ADR-0010](docs/adr/0010-ci-test-workflow.md).

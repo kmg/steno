@@ -17,6 +17,23 @@ jobs:
       - name: Install xcodegen
         run: brew install xcodegen
 
+      # Write Steno.xcconfig from repo secrets so the built app has the
+      # PostHog + Sentry keys plumbed into Info.plist. The keys are
+      # public-by-design SDK keys (see docs/adr/0009). If a secret is
+      # missing, the key falls back to empty and the SDK init no-ops.
+      # The `https:/$()/...` workaround keeps xcconfig's // comment
+      # parser from truncating the Sentry DSN URL.
+      - name: Write Steno.xcconfig
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: |
+          {
+            echo "POSTHOG_API_KEY = ${POSTHOG_API_KEY}"
+            # Split // with $() so xcconfig doesn't treat it as a comment
+            echo "SENTRY_DSN = ${SENTRY_DSN//\/\//\/\$()\/}"
+          } > Steno.xcconfig
+
       - name: Generate Xcode project
         run: xcodegen generate
 
