@@ -22,9 +22,18 @@ Learned 2026-04-21: shipped 4 broken releases (v0.2.11–v0.2.14) in one session
 
 5. **Protect the core function above all else.** Steno records and transcribes. Every change must be evaluated against: "does this break recording or transcription?" If unsure, don't ship it.
 
+## Read first
+
+- `docs/adr/` — architecture decision records (MADR format). Read [0001](docs/adr/0001-record-architecture-decisions.md) and [0002](docs/adr/0002-madr-format.md) for the system; read [0004](docs/adr/0004-audio-architecture-v2.md), [0005](docs/adr/0005-release-discipline.md), and [0006](docs/adr/0006-v0.1.x-retroactive-decisions.md) before touching anything substantive.
+- `ARCHITECTURE.md` — data flow, format invariants, what-breaks-what map. Required reading before editing `Steno/Audio/` or `Steno/Services/StreamingTranscriber.swift`.
+
 ## Architecture Reference
 
 Before modifying any file in `Steno/Audio/` or `Steno/Services/StreamingTranscriber.swift`, read `ARCHITECTURE.md`. It documents the data flow, format invariants, thread safety rules, and what-breaks-what map. Changes that violate the invariants will produce crashes, robotic audio, or silent data loss.
+
+## Recording architecture decisions (ADRs)
+
+Every behavioral change ships with an ADR or amendment, in the same commit. Use [`docs/adr/0001`](docs/adr/0001-record-architecture-decisions.md) and [`0002`](docs/adr/0002-madr-format.md) as the format reference. New ADRs use the next sequential number; superseded ADRs stay in the repo with `Status: Superseded by ADR-NNNN`. Pure UI tweaks, version bumps, and copy edits don't need ADRs — anything that encodes a design rule does.
 
 ## Build
 
