@@ -123,6 +123,23 @@ Before shipping any view change, trace every user action through the full loop:
 
 The pattern: **trigger → state change → side effect → user feedback → error path.** Most bugs are missing feedback or missing error paths.
 
+## SDK Keys
+
+Third-party SDK keys (PostHog `phc_`, Sentry DSN, similar public-by-design vendor keys) **never go inline in `.swift` source.** They live in `Steno.xcconfig` (gitignored), are plumbed into `Info.plist` via `$(VAR)` substitution, and read at runtime via `Bundle.main.infoDictionary?["KeyName"]`.
+
+First-time setup:
+```bash
+cp Steno.xcconfig.example Steno.xcconfig
+# edit Steno.xcconfig with real values, then:
+xcodegen generate
+```
+
+If `Steno.xcconfig` is missing, the build still works — the SDK init in `Analytics.swift` becomes a no-op with a log message. Useful for CI and contributors.
+
+The linter (`no-inline-sdk-key` rule) flags literal `phc_*`, `phx_*`, `sk-ant-*`, `sk-*`, and Sentry DSN URL patterns in `.swift` files. See [ADR-0009](docs/adr/0009-build-time-config-for-sdk-keys.md).
+
+**Real secrets** (Personal API Keys `phx_`, Anthropic/OpenAI keys `sk-`, signing certs, App Store Connect API keys) never go in any committed file, ever — not even in this pattern. Those belong in environment variables or a secret store outside the repo tree.
+
 ## Linter
 
 Custom linter at `tools/lint-steno.swift` enforces several rules mechanically. Run on the codebase:

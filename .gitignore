@@ -25,5 +25,8 @@ Package.resolved
 # Environment
 .env
 
+# Local build-time secrets — see Steno.xcconfig.example for the template
+Steno.xcconfig
+
 # Swift code coverage artifacts
 *.profraw

@@ -24,6 +24,13 @@
 //   codable-explicit-coding-keys    — every type declared `Codable` (or `: Codable`)
 //                                      includes an explicit `CodingKeys` enum.
 //                                      (Catches drift between property names and JSON keys.)
+//   no-private-parent-ref           — no references to a private parent repo or sibling
+//                                      private project in any file. This repo is public;
+//                                      such references leak information about repo layout.
+//   no-inline-sdk-key               — no literal SDK keys (phc_, phx_, sk-, Sentry DSN URLs)
+//                                      inline in .swift files. Move to Steno.xcconfig
+//                                      and read from Bundle.main.infoDictionary at runtime.
+//                                      See ADR-0009.
 //
 // More rules will be added as patterns surface. Each violation includes
 // an explicit remediation hint for the agent reading the error.
@@ -46,17 +53,20 @@ func usage() -> Never {
     exit(2)
 }
 
-func swiftFiles(under path: String) -> [String] {
+func lintableFiles(under path: String) -> [String] {
     let fm = FileManager.default
     var isDir: ObjCBool = false
     guard fm.fileExists(atPath: path, isDirectory: &isDir) else { return [] }
+    let extensions = [".swift", ".md"]
     if !isDir.boolValue {
-        return path.hasSuffix(".swift") ? [path] : []
+        return extensions.contains(where: { path.hasSuffix($0) }) ? [path] : []
     }
     var out: [String] = []
     if let e = fm.enumerator(atPath: path) {
-        for case let sub as String in e where sub.hasSuffix(".swift") {
-            out.append((path as NSString).appendingPathComponent(sub))
+        for case let sub as String in e {
+            if extensions.contains(where: { sub.hasSuffix($0) }) {
+                out.append((path as NSString).appendingPathComponent(sub))
+            }
         }
     }
     return out
@@ -108,12 +118,86 @@ func hasCodingKeys(_ src: String) -> Bool {
     return src.range(of: #"\benum\s+CodingKeys\b"#, options: .regularExpression) != nil
 }
 
+let PRIVATE_PARENT_TOKENS: [String] = [
+    "",
+    "",
+]
+
+/// Patterns for inline SDK keys that should never appear in committed Swift code.
+/// phc_/phx_ = PostHog. sk-ant- / sk-proj- = Anthropic / OpenAI. Sentry DSNs follow
+/// a recognizable URL shape with @ + ingest.sentry.io.
+let INLINE_SDK_KEY_PATTERNS: [(name: String, regex: String)] = [
+    ("PostHog Project API key", #"\bphc_[A-Za-z0-9]{20,}"#),
+    ("PostHog Personal API key", #"\bphx_[A-Za-z0-9]{20,}"#),
+    ("Anthropic API key", #"\bsk-ant-[A-Za-z0-9_-]{20,}"#),
+    ("OpenAI API key", #"\bsk-(?:proj-)?[A-Za-z0-9]{20,}"#),
+    ("Sentry DSN", #"https://[A-Za-z0-9]{20,}@[A-Za-z0-9.-]+\.ingest\.[a-z.]*sentry\.io/\d+"#),
+]
+
+func lintPrivateParentRefs(_ src: String, file: String) -> [Violation] {
+    var out: [Violation] = []
+    let lines = src.split(separator: "\n", omittingEmptySubsequences: false)
+    for (i, raw) in lines.enumerated() {
+        let line = String(raw)
+        let lower = line.lowercased()
+        for token in PRIVATE_PARENT_TOKENS where lower.contains(token) {
+            out.append(.init(
+                file: file, line: i + 1, rule: "no-private-parent-ref",
+                message: "found `\(token)` reference — this repo is public, do not leak private parent or sibling project names",
+                remediation: """
+                Rephrase the sentence to not name the private project. If you're describing a pattern that \
+                came from another project, describe the pattern generically without naming the source. \
+                If the path was a pointer to a file in another repo, inline the lesson instead — public \
+                repo docs must be self-contained.
+                """
+            ))
+            break
+        }
+    }
+    return out
+}
+
 func lint(_ file: String) -> [Violation] {
     guard let src = try? String(contentsOfFile: file, encoding: .utf8) else { return [] }
     let isTestFile = file.hasSuffix("Tests.swift") || file.contains("StenoTests/")
     let isLoggingInfra = file.contains("Steno/Services/Logging/")
+    let isLinterSelf = file.hasSuffix("lint-steno.swift")
+    let isSwift = file.hasSuffix(".swift")
 
     var violations: [Violation] = []
+
+    // no-private-parent-ref — applies to all lintable files. Skip the linter
+    // itself since the token list is data.
+    if !isLinterSelf {
+        violations.append(contentsOf: lintPrivateParentRefs(src, file: file))
+    }
+
+    // The remaining rules are .swift-only.
+    guard isSwift else { return violations }
+
+    let lines = src.split(separator: "\n", omittingEmptySubsequences: false)
+
+    // no-inline-sdk-key — applies to .swift files only. Skip the linter
+    // itself since the regex patterns are data, not committed keys.
+    if !isLinterSelf {
+        for (i, raw) in lines.enumerated() {
+            let line = String(raw)
+            for pattern in INLINE_SDK_KEY_PATTERNS {
+                if line.range(of: pattern.regex, options: .regularExpression) != nil {
+                    violations.append(.init(
+                        file: file, line: i + 1, rule: "no-inline-sdk-key",
+                        message: "literal \(pattern.name) found in source — never commit SDK keys inline",
+                        remediation: """
+                        Move the key to Steno.xcconfig (gitignored — see Steno.xcconfig.example for the template), \
+                        add an Info.plist key in Steno/Info.plist that references it via $(BUILD_VAR), and read \
+                        from Bundle.main.infoDictionary at runtime. See ADR-0009. After moving, the literal must \
+                        be removed from history via filter-repo if the commit was pushed.
+                        """
+                    ))
+                }
+            }
+        }
+    }
 
     // max-file-loc
     let loc = nonBlankNonCommentLines(src)
@@ -147,8 +231,7 @@ func lint(_ file: String) -> [Violation] {
         }
     }
 
-    // line-level checks
-    let lines = src.split(separator: "\n", omittingEmptySubsequences: false)
+    // line-level checks — `lines` already computed above for the SDK-key scan.
     for (i, raw) in lines.enumerated() {
         let lineNo = i + 1
         let line = String(raw)
@@ -211,7 +294,7 @@ if args.isEmpty { usage() }
 
 var allViolations: [Violation] = []
 for path in args {
-    for file in swiftFiles(under: path) {
+    for file in lintableFiles(under: path) {
         allViolations.append(contentsOf: lint(file))
     }
 }

@@ -1,0 +1,22 @@
+// Steno.xcconfig.example — template for local build-time secrets.
+//
+// Copy this file to Steno.xcconfig (gitignored) and fill in real values.
+// Then run `xcodegen generate` so the xcodeproj picks up the file. The
+// keys land in Info.plist via project.yml INFOPLIST_KEY_* entries and
+// are read at runtime by Steno/Services/Analytics.swift.
+//
+// xcconfig treats // as a comment delimiter even inside values. URLs
+// containing // are broken with an empty $() substitution as shown.
+//
+// What goes here: third-party SDK keys that are public-by-design
+// (PostHog Project API keys, Sentry DSNs, similar). These are not
+// secrets in the AWS/Anthropic sense — they're embedded in the
+// shipped binary by design. The xcconfig pattern is for repo hygiene,
+// not security. See docs/adr/0009-build-time-config-for-sdk-keys.md.
+//
+// What does NOT go here: actual secrets (Personal API Keys, OAuth
+// tokens, signing keys). Those belong in environment variables or a
+// secret store, never in any file inside the repo tree.
+
+POSTHOG_API_KEY = phc_REPLACE_ME
+SENTRY_DSN = https:/$()/REPLACE_ME@oXXX.ingest.us.sentry.io/REPLACE_ME

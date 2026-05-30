@@ -6,6 +6,10 @@ options:
   xcodeVersion: "16.0"
   generateEmptyDirectories: true
 
+configFiles:
+  Debug: Steno.xcconfig
+  Release: Steno.xcconfig
+
 packages:
   WhisperKit:
     url: https://github.com/argmaxinc/WhisperKit.git

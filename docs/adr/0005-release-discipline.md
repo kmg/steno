@@ -46,7 +46,7 @@ A `.claude/hooks/steno-pre-tag.sh` that fails the tag command unless version mat
 
 **Selected: Option 2 + Option 3 combined.**
 
-Rules codified in `create/steno/AGENTS.md` "Release Discipline" section. Mechanical checks enforced by `.claude/hooks/steno-pre-tag.sh`.
+Rules codified in `AGENTS.md` "Release Discipline" section. Mechanical pre-tag checks enforced by a tooling hook.
 
 ### The five rules
 

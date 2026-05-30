@@ -6,8 +6,13 @@ import os
 enum Analytics {
     private static let log = StenoLog.app
 
-    private static let sentryDSN = ""
-    private static let posthogAPIKey = ""
+    // Public-by-design SDK keys (see docs/adr/0009-build-time-config-for-sdk-keys.md).
+    // Stored in Steno.xcconfig (gitignored) and plumbed via Info.plist at build time.
+    // Empty strings when running tests or a build without the xcconfig — SDK init becomes a no-op.
+    private static let sentryDSN: String =
+        Bundle.main.infoDictionary?["SentryDSN"] as? String ?? ""
+    private static let posthogAPIKey: String =
+        Bundle.main.infoDictionary?["PostHogKey"] as? String ?? ""
     private static let posthogHost = "https://us.i.posthog.com"
 
     private static let locale = Locale.current.identifier
@@ -15,23 +20,31 @@ enum Analytics {
     // MARK: - Init
 
     static func configure() {
-        SentrySDK.start { options in
-            options.dsn = sentryDSN
-            options.enableAutoSessionTracking = true
-            options.enableCaptureFailedRequests = false
-            options.enableNetworkBreadcrumbs = false
-            options.sendDefaultPii = false
-            options.beforeSend = { event in
-                UserDefaults.standard.bool(forKey: "enableCrashReporting") ? event : nil
+        if sentryDSN.isEmpty {
+            log.info("Sentry DSN missing — skipping Sentry init (likely a build without Steno.xcconfig)")
+        } else {
+            SentrySDK.start { options in
+                options.dsn = sentryDSN
+                options.enableAutoSessionTracking = true
+                options.enableCaptureFailedRequests = false
+                options.enableNetworkBreadcrumbs = false
+                options.sendDefaultPii = false
+                options.beforeSend = { event in
+                    UserDefaults.standard.bool(forKey: "enableCrashReporting") ? event : nil
+                }
             }
         }
 
-        let config = PostHogConfig(apiKey: posthogAPIKey, host: posthogHost)
-        config.captureApplicationLifecycleEvents = false
-        config.captureScreenViews = false
-        config.sendFeatureFlagEvent = false
-        PostHogSDK.shared.setup(config)
-        syncPostHogOptOut()
+        if posthogAPIKey.isEmpty {
+            log.info("PostHog key missing — skipping PostHog init (likely a build without Steno.xcconfig)")
+        } else {
+            let config = PostHogConfig(apiKey: posthogAPIKey, host: posthogHost)
+            config.captureApplicationLifecycleEvents = false
+            config.captureScreenViews = false
+            config.sendFeatureFlagEvent = false
+            PostHogSDK.shared.setup(config)
+            syncPostHogOptOut()
+        }
 
         log.info("Analytics configured")
     }

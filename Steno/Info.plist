@@ -6,5 +6,9 @@
 	<string>Steno needs microphone access to record and transcribe conversations.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Steno needs system audio access to capture the remote side of video calls.</string>
+	<key>PostHogKey</key>
+	<string>$(POSTHOG_API_KEY)</string>
+	<key>SentryDSN</key>
+	<string>$(SENTRY_DSN)</string>
 </dict>
 </plist>
