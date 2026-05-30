@@ -162,4 +162,15 @@ Steno/Services/
   StreamingTranscriber.swift — accumulates mic PCM, feeds WhisperKit for live transcription
   TranscriptionEngine.swift  — WhisperKit model management, batch transcription
   DiarizationManager.swift   — FluidAudio LS-EEND speaker identification
+  Logging/
+    StenoLog.swift           — facade: StenoLog.audio.info("..."), 5 subsystems
+    LogStore.swift           — NSLock-protected ring buffer feeding the Debug tab
 ```
+
+## Logging
+
+All code logs via `StenoLog.<subsystem>.<level>(message)`. Subsystems: `audio`, `transcription`, `diarization`, `storage`, `app`. Each call writes to `os_log` (Console.app, `log stream`) AND to `LogStore.shared` (in-app Debug tab in Settings).
+
+See [ADR-0007](docs/adr/0007-structured-logging-and-debug-tab.md) for the design.
+
+**Don't use bare `Logger(subsystem:category:)` in app code.** It bypasses LogStore and the Debug tab can't show it. The one exception is `StenoLog` itself, which wraps `os.Logger` internally.

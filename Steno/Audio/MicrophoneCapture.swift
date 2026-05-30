@@ -8,7 +8,7 @@ import os
 /// `start`/`stop` are called from the main thread via RecordingPipeline.
 final class MicrophoneCapture: @unchecked Sendable {
     private var engine = AVAudioEngine()
-    private let logger = Logger(subsystem: "com.kmganesh.steno", category: "MicrophoneCapture")
+    private let log = StenoLog.audio
 
     private(set) var isCapturing = false
     private(set) var inputFormat: AVAudioFormat?
@@ -81,15 +81,15 @@ final class MicrophoneCapture: @unchecked Sendable {
                 }
 
                 guard let actualFormat = capturedFormat else {
-                    logger.warning("Invalid format after installTap with \(name)")
+                    log.warning("Invalid format after installTap with \(name)")
                     engine.inputNode.removeTap(onBus: 0)
                     continue
                 }
 
                 inputFormat = actualFormat
-                logger.info("Mic format (\(name)): \(actualFormat.sampleRate)Hz, \(actualFormat.channelCount)ch")
+                log.info("Mic format (\(name)): \(actualFormat.sampleRate)Hz, \(actualFormat.channelCount)ch")
             } catch {
-                logger.warning("Engine setup failed with \(name): \(error.localizedDescription)")
+                log.warning("Engine setup failed with \(name): \(error.localizedDescription)")
                 continue
             }
 
@@ -97,7 +97,7 @@ final class MicrophoneCapture: @unchecked Sendable {
             try engine.start()
             isCapturing = true
             installInputDeviceListener()
-            logger.info("Microphone capture started")
+            log.info("Microphone capture started")
             return
         }
 
@@ -110,7 +110,7 @@ final class MicrophoneCapture: @unchecked Sendable {
         guard isCapturing, let handler = bufferHandler else { return }
         let changeCallback = onDeviceChange
         let failCallback = onDeviceChangeFailed
-        logger.info("Restarting mic capture after device change")
+        log.info("Restarting mic capture after device change")
         stop()
         do {
             bufferHandler = handler
@@ -121,7 +121,7 @@ final class MicrophoneCapture: @unchecked Sendable {
                 changeCallback?(newFormat)
             }
         } catch {
-            logger.error("Mic restart failed: \(error.localizedDescription). Stopping recording.")
+            log.error("Mic restart failed: \(error.localizedDescription). Stopping recording.")
             failCallback?()
         }
     }
@@ -132,7 +132,7 @@ final class MicrophoneCapture: @unchecked Sendable {
         removeTapSafely()
         engine.stop()
         isCapturing = false
-        logger.info("Microphone capture stopped")
+        log.info("Microphone capture stopped")
     }
 
     private func removeTapSafely() {
@@ -151,7 +151,7 @@ final class MicrophoneCapture: @unchecked Sendable {
 
         let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             guard let self else { return }
-            self.logger.info("Default input device changed")
+            self.log.info("Default input device changed")
             // Serialize on restartQueue. The listener callback runs on Core Audio's
             // thread — all mutable state access must happen on our queue.
             self.restartQueue.async { [weak self] in

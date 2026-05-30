@@ -5,7 +5,7 @@ import os
 /// Deletes the WAV only after verified conversion. If conversion fails,
 /// the WAV remains as fallback — the user never loses audio.
 enum AudioConverter {
-    private static let logger = Logger(subsystem: "com.kmganesh.steno", category: "AudioConverter")
+    private static let log = StenoLog.audio
 
     /// Convert WAV file(s) to AAC .m4a. Trashes the WAVs on success.
     /// If multiple segments exist (from device switches mid-recording),
@@ -54,10 +54,10 @@ enum AudioConverter {
                     )
                     insertTime = CMTimeAdd(insertTime, segDuration)
                 } catch {
-                    logger.warning("Failed to add segment \(segURL.lastPathComponent): \(error.localizedDescription)")
+                    log.warning("Failed to add segment \(segURL.lastPathComponent): \(error.localizedDescription)")
                 }
             }
-            logger.info("Composed \(allWAVs.count) segments, total \(Int(insertTime.seconds))s")
+            log.info("Composed \(allWAVs.count) segments, total \(Int(insertTime.seconds))s")
             exportAsset = composition
         }
 
@@ -65,7 +65,7 @@ enum AudioConverter {
             asset: exportAsset,
             presetName: AVAssetExportPresetAppleM4A
         ) else {
-            logger.error("Failed to create export session")
+            log.error("Failed to create export session")
             return
         }
 
@@ -73,7 +73,7 @@ enum AudioConverter {
         do {
             try await exportSession.export(to: tmpURL, as: .m4a)
         } catch {
-            logger.error("AAC conversion failed: \(error.localizedDescription)")
+            log.error("AAC conversion failed: \(error.localizedDescription)")
             try? FileManager.default.removeItem(at: tmpURL)
             return
         }
@@ -82,7 +82,7 @@ enum AudioConverter {
         let outputAsset = AVURLAsset(url: tmpURL)
         let duration = try? await outputAsset.load(.duration)
         guard let duration, duration.seconds > 0 else {
-            logger.error("AAC conversion produced invalid file, keeping WAV")
+            log.error("AAC conversion produced invalid file, keeping WAV")
             try? FileManager.default.removeItem(at: tmpURL)
             return
         }
@@ -92,7 +92,7 @@ enum AudioConverter {
         do {
             try FileManager.default.moveItem(at: tmpURL, to: m4aURL)
         } catch {
-            logger.error("Failed to finalize audio.m4a: \(error.localizedDescription)")
+            log.error("Failed to finalize audio.m4a: \(error.localizedDescription)")
             try? FileManager.default.removeItem(at: tmpURL)
             return
         }
@@ -102,9 +102,9 @@ enum AudioConverter {
             do {
                 try FileManager.default.trashItem(at: segURL, resultingItemURL: nil)
             } catch {
-                logger.warning("Failed to trash \(segURL.lastPathComponent): \(error.localizedDescription)")
+                log.warning("Failed to trash \(segURL.lastPathComponent): \(error.localizedDescription)")
             }
         }
-        logger.info("Converted to AAC (\(Int(duration.seconds))s), trashed \(allWAVs.count) WAV file(s)")
+        log.info("Converted to AAC (\(Int(duration.seconds))s), trashed \(allWAVs.count) WAV file(s)")
     }
 }

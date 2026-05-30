@@ -25,6 +25,18 @@ struct SettingsView: View {
     ]
 
     var body: some View {
+        TabView {
+            generalTab
+                .tabItem { Label("General", systemImage: "gearshape") }
+
+            DebugTabView()
+                .tabItem { Label("Debug", systemImage: "ladybug") }
+                .frame(minWidth: 700, minHeight: 480)
+        }
+        .frame(minWidth: 540)
+    }
+
+    private var generalTab: some View {
         Form {
             Section("Transcription") {
                 Picker("Default Model", selection: $defaultModel) {

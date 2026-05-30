@@ -12,7 +12,7 @@ final class RecordingManager: ObservableObject {
     @Published private(set) var systemAudioActive = false
 
     private let pipeline = RecordingPipeline()
-    private let logger = Logger(subsystem: "com.kmganesh.steno", category: "RecordingManager")
+    private let log = StenoLog.app
 
     private var timer: Timer?
     private var partialSaveTimer: Timer?
@@ -55,7 +55,7 @@ final class RecordingManager: ObservableObject {
                     transcriptionEngine: transcriptionEngine,
                     diarizationManager: diarizationManager
                 ) {
-                    self.logger.info("Recording auto-stopped after device change, duration: \(result.duration)s")
+                    self.log.info("Recording auto-stopped after device change, duration: \(result.duration)s")
                 }
             }
         }
@@ -88,7 +88,7 @@ final class RecordingManager: ObservableObject {
                     }
                 }
 
-                self.logger.info("Recording started: \(session.id), systemAudio: \(self.systemAudioActive)")
+                self.log.info("Recording started: \(session.id), systemAudio: \(self.systemAudioActive)")
             } catch {
                 pipeline.stop()
                 self.isStarting = false
@@ -97,7 +97,7 @@ final class RecordingManager: ObservableObject {
                 self.activeSessionStore = nil
                 self.activeTranscriptionEngine = nil
                 self.error = error.localizedDescription
-                self.logger.error("Failed to start recording: \(error)")
+                self.log.error("Failed to start recording: \(error)")
                 Analytics.captureError(error, context: ["action": "start_recording"])
             }
         }
@@ -141,7 +141,7 @@ final class RecordingManager: ObservableObject {
         }
 
         Analytics.recordingStopped(duration: duration, model: transcriptionEngine.modelName)
-        logger.info("Recording stopped, duration: \(duration)s, segments: \(allSegments.count)")
+        log.info("Recording stopped, duration: \(duration)s, segments: \(allSegments.count)")
 
         elapsedTime = 0
         recordingStart = nil

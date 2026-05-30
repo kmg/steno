@@ -21,7 +21,7 @@ final class TranscriptionEngine: ObservableObject {
     @Published var liveUnconfirmedSegments: [TranscriptionSegment] = []
 
     private let worker = TranscriptionWorker()
-    private let logger = Logger(subsystem: "com.kmganesh.steno", category: "TranscriptionEngine")
+    private let log = StenoLog.transcription
 
     var modelName: String = "large-v3_turbo"
     var customModelFolder: String?
@@ -29,12 +29,12 @@ final class TranscriptionEngine: ObservableObject {
     func loadModel() async {
         let cached = isModelCached(modelName)
         state = cached ? .loading(modelName) : .downloading(modelName)
-        logger.info("Loading WhisperKit model: \(self.modelName), cached: \(cached)")
+        log.info("Loading WhisperKit model: \(self.modelName), cached: \(cached)")
 
         do {
             try await worker.load(model: modelName, modelFolder: customModelFolder)
             state = .idle
-            logger.info("WhisperKit model loaded: \(self.modelName)")
+            log.info("WhisperKit model loaded: \(self.modelName)")
         } catch {
             // WhisperKit/HuggingFace Hub: model not cached and no internet to download.
             // User environment issue, not an app bug — show actionable message, don't pollute telemetry.
@@ -44,10 +44,10 @@ final class TranscriptionEngine: ObservableObject {
             //   - NSURLErrorDomain code -1009 (not connected to internet) during download
             if Self.isOfflineModelError(error) {
                 state = .error("Model \(modelName) not downloaded. Connect to the internet for first-time setup.")
-                logger.info("Model load deferred — offline and not cached: \(self.modelName)")
+                log.info("Model load deferred — offline and not cached: \(self.modelName)")
             } else {
                 state = .error("Failed to load model: \(error.localizedDescription)")
-                logger.error("Failed to load WhisperKit: \(error)")
+                log.error("Failed to load WhisperKit: \(error)")
                 Analytics.captureError(error, context: ["action": "load_model", "model": modelName])
             }
         }
@@ -135,7 +135,7 @@ final class TranscriptionEngine: ObservableObject {
     func transcribe(audioPath: String, duration: Double, sessionID: String? = nil) async -> Transcript? {
         activeSessionID = sessionID
         state = .transcribing(0)
-        logger.info("Transcribing: \(audioPath)")
+        log.info("Transcribing: \(audioPath)")
 
         do {
             let audioDuration = max(duration, 1)
@@ -163,13 +163,13 @@ final class TranscriptionEngine: ObservableObject {
             lastTranscript = transcript
             activeSessionID = nil
             state = .complete
-            logger.info("Transcription complete: \(result.segments.count) segments")
+            log.info("Transcription complete: \(result.segments.count) segments")
             return transcript
 
         } catch {
             activeSessionID = nil
             state = .error("Transcription failed: \(error.localizedDescription)")
-            logger.error("Transcription failed: \(error)")
+            log.error("Transcription failed: \(error)")
             Analytics.captureError(error, context: ["action": "transcribe_file"])
             return nil
         }

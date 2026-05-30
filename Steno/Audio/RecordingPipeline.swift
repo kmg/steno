@@ -12,7 +12,7 @@ final class RecordingPipeline: @unchecked Sendable {
     private let mixer = AudioMixer()
     private let writer = AudioFileWriter()
     private let state = AudioSharedState()
-    private let logger = Logger(subsystem: "com.kmganesh.steno", category: "RecordingPipeline")
+    private let log = StenoLog.audio
 
     /// The format used to open the file writer. All audio must match this.
     private var recordingFormat: AVAudioFormat?
@@ -61,9 +61,9 @@ final class RecordingPipeline: @unchecked Sendable {
             }
             try systemCapture.start()
             systemAudioActive = true
-            logger.info("System audio capture active")
+            log.info("System audio capture active")
         } catch {
-            logger.info("System audio not available: \(error.localizedDescription)")
+            log.info("System audio not available: \(error.localizedDescription)")
         }
 
         let captureSystem = systemAudioActive
@@ -149,9 +149,9 @@ final class RecordingPipeline: @unchecked Sendable {
             self.segmentURLs.append(segURL)
             do {
                 try self.writer.start(outputURL: segURL, sourceFormat: newFormat)
-                self.logger.info("New WAV segment at \(newFormat.sampleRate)Hz (\(segURL.lastPathComponent))")
+                self.log.info("New WAV segment at \(newFormat.sampleRate)Hz (\(segURL.lastPathComponent))")
             } catch {
-                self.logger.error("Failed to start new WAV segment: \(error.localizedDescription)")
+                self.log.error("Failed to start new WAV segment: \(error.localizedDescription)")
             }
 
             // Reconfigure system audio resampling for new mic rate
@@ -162,7 +162,7 @@ final class RecordingPipeline: @unchecked Sendable {
         // stop recording gracefully instead of crashing.
         mic.onDeviceChangeFailed = { [weak self] in
             guard let self else { return }
-            self.logger.error("Mic device change failed — stopping recording gracefully")
+            self.log.error("Mic device change failed — stopping recording gracefully")
             self.writer.finish()
             self.onRecordingInterrupted?()
         }
@@ -172,7 +172,7 @@ final class RecordingPipeline: @unchecked Sendable {
             streamer.onSegmentsUpdated = onSegmentsUpdated
         }
 
-        logger.info("Recording pipeline started, systemAudio: \(self.systemAudioActive)")
+        log.info("Recording pipeline started, systemAudio: \(self.systemAudioActive)")
     }
 
     func stop() {
@@ -210,14 +210,14 @@ final class RecordingPipeline: @unchecked Sendable {
                 self.systemInputFormat = inFmt
                 self.systemOutputFormat = outFmt
             }
-            logger.info("System audio resampling: \(sysRate)Hz → \(micRate)Hz")
+            log.info("System audio resampling: \(sysRate)Hz → \(micRate)Hz")
         } else {
             resampleQueue.sync {
                 self.systemConverter = nil
                 self.systemInputFormat = nil
                 self.systemOutputFormat = nil
             }
-            logger.info("System audio: same rate as mic (\(sysRate)Hz), passthrough")
+            log.info("System audio: same rate as mic (\(sysRate)Hz), passthrough")
         }
     }
 

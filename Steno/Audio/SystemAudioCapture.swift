@@ -5,7 +5,7 @@ import os
 /// Captures system audio using Core Audio Taps (macOS 14.2+).
 /// Uses a global stereo tap to capture all system audio output.
 final class SystemAudioCapture: @unchecked Sendable {
-    private let logger = Logger(subsystem: "com.kmganesh.steno", category: "SystemAudioCapture")
+    private let log = StenoLog.audio
 
     private var tapID: AudioObjectID = 0
     private var aggregateDeviceID: AudioObjectID = 0
@@ -57,7 +57,7 @@ final class SystemAudioCapture: @unchecked Sendable {
             throw CaptureError.tapCreationFailed(tapStatus)
         }
         self.tapID = tapObjectID
-        logger.info("Process tap created: \(tapObjectID)")
+        log.info("Process tap created: \(tapObjectID)")
 
         // 3. Create aggregate device with the tap
         let aggregateDict: [String: Any] = [
@@ -76,7 +76,7 @@ final class SystemAudioCapture: @unchecked Sendable {
             throw CaptureError.aggregateDeviceFailed(aggStatus)
         }
         self.aggregateDeviceID = aggregateID
-        logger.info("Aggregate device created: \(aggregateID)")
+        log.info("Aggregate device created: \(aggregateID)")
 
         // 4. Read the stream format
         var streamFormat = AudioStreamBasicDescription()
@@ -89,7 +89,7 @@ final class SystemAudioCapture: @unchecked Sendable {
 
         AudioObjectGetPropertyData(aggregateID, &formatAddress, 0, nil, &formatSize, &streamFormat)
         captureFormat = AVAudioFormat(streamDescription: &streamFormat)
-        logger.info("Capture format: \(streamFormat.mSampleRate)Hz, \(streamFormat.mChannelsPerFrame)ch")
+        log.info("Capture format: \(streamFormat.mSampleRate)Hz, \(streamFormat.mChannelsPerFrame)ch")
 
         // 5. Create IO proc for receiving audio
         // Capture handler directly — avoids accessing `self` on the IO thread
@@ -126,7 +126,7 @@ final class SystemAudioCapture: @unchecked Sendable {
         }
 
         isCapturing = true
-        logger.info("System audio capture started")
+        log.info("System audio capture started")
 
         // Listen for default output device changes (e.g. switching to AirPods).
         // The global tap may stop delivering or deliver from the old device graph.
@@ -154,20 +154,20 @@ final class SystemAudioCapture: @unchecked Sendable {
         tapID = 0
         tapDescription = nil
         isCapturing = false
-        logger.info("System audio capture stopped")
+        log.info("System audio capture stopped")
     }
 
     /// Recreate the tap when the output device changes. The global stereo tap
     /// may stop delivering audio or capture from the wrong device after a switch.
     func restart() {
         guard isCapturing, let handler = bufferHandler else { return }
-        logger.info("Restarting system audio capture after device change")
+        log.info("Restarting system audio capture after device change")
         stop()
         do {
             bufferHandler = handler
             try start()
         } catch {
-            logger.error("Failed to restart system audio capture: \(error)")
+            log.error("Failed to restart system audio capture: \(error)")
         }
     }
 
@@ -182,7 +182,7 @@ final class SystemAudioCapture: @unchecked Sendable {
 
         let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             guard let self else { return }
-            self.logger.info("Default output device changed")
+            self.log.info("Default output device changed")
             self.restartQueue.async { [weak self] in
                 guard let self else { return }
                 self.pendingRestart?.cancel()
@@ -203,7 +203,7 @@ final class SystemAudioCapture: @unchecked Sendable {
         if status == noErr {
             deviceListenerBlock = block
         } else {
-            logger.warning("Failed to install output device listener: \(status)")
+            log.warning("Failed to install output device listener: \(status)")
         }
     }
 

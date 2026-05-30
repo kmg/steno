@@ -4,7 +4,7 @@ import os
 /// On launch, scans for sessions with status "recording" — these were interrupted
 /// by a crash or force-quit. Marks them as recovered.
 struct CrashRecovery {
-    private static let logger = Logger(subsystem: "com.kmganesh.steno", category: "CrashRecovery")
+    private static let log = StenoLog.storage
 
     /// Finds sessions left in "recording" status (crash/force-quit) and marks them recovered.
     /// Audio and transcript files are already on disk — this just fixes the metadata.
@@ -49,7 +49,7 @@ struct CrashRecovery {
 
             recoveredIDs.append(session.id)
             Analytics.sessionRecovered(sessionID: session.id)
-            logger.info("Session recovered: \(session.id)")
+            log.info("Session recovered: \(session.id)")
         }
 
         return recoveredIDs
@@ -81,6 +81,6 @@ struct CrashRecovery {
         fh.seek(toFileOffset: 40)
         fh.write(Data(bytes: &dataSize, count: 4))
 
-        logger.info("Repaired WAV header: \(url.lastPathComponent) (\(fileSize) bytes)")
+        log.info("Repaired WAV header: \(url.lastPathComponent) (\(fileSize) bytes)")
     }
 }

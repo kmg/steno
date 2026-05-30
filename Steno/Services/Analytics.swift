@@ -4,7 +4,7 @@ import PostHog
 import os
 
 enum Analytics {
-    private static let logger = Logger(subsystem: "com.kmganesh.steno", category: "Analytics")
+    private static let log = StenoLog.app
 
     private static let sentryDSN = ""
     private static let posthogAPIKey = ""
@@ -33,7 +33,7 @@ enum Analytics {
         PostHogSDK.shared.setup(config)
         syncPostHogOptOut()
 
-        logger.info("Analytics configured")
+        log.info("Analytics configured")
     }
 
     static func syncPostHogOptOut() {

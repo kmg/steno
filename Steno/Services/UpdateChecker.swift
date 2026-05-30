@@ -10,7 +10,7 @@ final class UpdateChecker: ObservableObject {
 
     @Published var availableUpdate: UpdateInfo?
 
-    private let logger = Logger(subsystem: "com.kmganesh.steno", category: "UpdateChecker")
+    private let log = StenoLog.app
     private var checkTask: Task<Void, Never>?
 
     /// Version the user dismissed — persisted so banner doesn't reappear on restart
@@ -60,10 +60,10 @@ final class UpdateChecker: ObservableObject {
                     version: remote,
                     url: URL(string: release.html_url) ?? url
                 )
-                logger.info("Update available: \(remote)")
+                log.info("Update available: \(remote)")
             }
         } catch {
-            logger.debug("Update check skipped: \(error.localizedDescription)")
+            log.debug("Update check skipped: \(error.localizedDescription)")
         }
     }
 

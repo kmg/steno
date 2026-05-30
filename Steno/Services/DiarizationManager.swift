@@ -5,7 +5,7 @@ import os
 /// Runs on Neural Engine. Supports up to 10 speakers, detected automatically.
 @MainActor
 final class DiarizationManager: ObservableObject {
-    nonisolated private let logger = Logger(subsystem: "com.kmganesh.steno", category: "DiarizationManager")
+    nonisolated private let log = StenoLog.diarization
 
     nonisolated let mlDiarizer = MLDiarizer()
 
@@ -15,9 +15,9 @@ final class DiarizationManager: ObservableObject {
         do {
             try await mlDiarizer.initialize()
             mlReady = true
-            logger.info("Speaker identification ready")
+            log.info("Speaker identification ready")
         } catch {
-            logger.error("Failed to load speaker identification model: \(error)")
+            log.error("Failed to load speaker identification model: \(error)")
         }
     }
 
@@ -28,7 +28,7 @@ final class DiarizationManager: ObservableObject {
     /// `Task { ... }` (which inherits MainActor isolation and would hang the UI).
     nonisolated func applyingSpeakerLabels(to transcript: Transcript, audioFileURL: URL) -> Transcript {
         guard mlDiarizer.isInitialized else {
-            logger.info("Speaker identification not ready, skipping")
+            log.info("Speaker identification not ready, skipping")
             return transcript
         }
 
@@ -47,10 +47,10 @@ final class DiarizationManager: ObservableObject {
 
             let count = updated.segments.count
             let speakerCount = result.speakers.count
-            logger.info("Speaker identification complete: \(speakerCount) speakers, \(count) segments")
+            log.info("Speaker identification complete: \(speakerCount) speakers, \(count) segments")
             return updated
         } catch {
-            logger.error("Speaker identification failed: \(error)")
+            log.error("Speaker identification failed: \(error)")
             return transcript
         }
     }

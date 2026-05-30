@@ -5,7 +5,7 @@ import os
 /// Layer 2 speaker diarization using FluidAudio's LS-EEND model.
 /// Runs on Neural Engine. Used for in-person meetings or multi-speaker calls.
 final class MLDiarizer: @unchecked Sendable {
-    private let logger = Logger(subsystem: "com.kmganesh.steno", category: "MLDiarizer")
+    private let log = StenoLog.diarization
     private var diarizer: LSEENDDiarizer?
     private(set) var isInitialized = false
 
@@ -15,7 +15,7 @@ final class MLDiarizer: @unchecked Sendable {
         try await d.initialize(variant: .dihard3)
         self.diarizer = d
         self.isInitialized = true
-        logger.info("FluidAudio LS-EEND diarizer initialized")
+        log.info("FluidAudio LS-EEND diarizer initialized")
     }
 
     /// Diarize an audio file. Returns speaker labels aligned to transcript segments.
@@ -31,7 +31,7 @@ final class MLDiarizer: @unchecked Sendable {
             throw DiarizationError.notInitialized
         }
 
-        logger.info("Running ML diarization on \(audioFileURL.lastPathComponent)")
+        log.info("Running ML diarization on \(audioFileURL.lastPathComponent)")
 
         let timeline = try diarizer.processComplete(audioFileURL: audioFileURL)
 
@@ -73,7 +73,7 @@ final class MLDiarizer: @unchecked Sendable {
             return bestSpeaker
         }
 
-        logger.info("ML diarization complete: \(uniqueSpeakers.count) speakers, \(diarSegments.count) segments")
+        log.info("ML diarization complete: \(uniqueSpeakers.count) speakers, \(diarSegments.count) segments")
         return (labels: labels, speakers: speakers)
     }
 

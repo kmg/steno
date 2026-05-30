@@ -5,7 +5,7 @@ import os
 /// Mixes microphone and system audio streams.
 /// Applies RMS-based ducking: reduces system audio when mic detects speech.
 final class AudioMixer: @unchecked Sendable {
-    private let logger = Logger(subsystem: "com.kmganesh.steno", category: "AudioMixer")
+    private let log = StenoLog.audio
 
     private let duckingThreshold: Float = 0.01  // RMS level above which mic is "active"
     private let duckingAmount: Float = 0.3       // Multiply system audio by this when ducking

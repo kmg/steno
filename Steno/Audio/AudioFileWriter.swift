@@ -11,7 +11,7 @@ import os
 final class AudioFileWriter: @unchecked Sendable {
     private let lock = NSLock()
     private var audioFile: AVAudioFile?
-    private let logger = Logger(subsystem: "com.kmganesh.steno", category: "AudioFileWriter")
+    private let log = StenoLog.audio
     private var _isWriting = false
 
     var isWriting: Bool {
@@ -45,7 +45,7 @@ final class AudioFileWriter: @unchecked Sendable {
         _isWriting = true
         lock.unlock()
 
-        logger.info("Audio writer started: \(outputURL.lastPathComponent), format: \(sourceFormat.sampleRate)Hz \(sourceFormat.channelCount)ch")
+        log.info("Audio writer started: \(outputURL.lastPathComponent), format: \(sourceFormat.sampleRate)Hz \(sourceFormat.channelCount)ch")
     }
 
     /// Append a PCM buffer. Call from the audio tap callback.
@@ -67,7 +67,7 @@ final class AudioFileWriter: @unchecked Sendable {
         let bufferSR = buffer.format.sampleRate
         if abs(fileSR - bufferSR) > 1 {
             if !_formatMismatchLogged {
-                logger.error("Buffer sample rate (\(bufferSR)) != file sample rate (\(fileSR)), dropping buffer")
+                log.error("Buffer sample rate (\(bufferSR)) != file sample rate (\(fileSR)), dropping buffer")
                 _formatMismatchLogged = true
             }
             lock.unlock()
@@ -77,7 +77,7 @@ final class AudioFileWriter: @unchecked Sendable {
         do {
             try file.write(from: buffer)
         } catch {
-            logger.error("Failed to write audio buffer: \(error)")
+            log.error("Failed to write audio buffer: \(error)")
         }
         lock.unlock()
     }
@@ -94,7 +94,7 @@ final class AudioFileWriter: @unchecked Sendable {
         audioFile = nil
         _isWriting = false
         lock.unlock()
-        logger.info("Audio writer finished")
+        log.info("Audio writer finished")
     }
 
 }

@@ -12,7 +12,7 @@ import os
 /// All mutable state is behind `lock`. Locked access is wrapped in
 /// synchronous helpers so NSLock is never called from async context.
 final class StreamingTranscriber: @unchecked Sendable {
-    private let logger = Logger(subsystem: "com.kmganesh.steno", category: "StreamingTranscriber")
+    private let log = StenoLog.transcription
     private let lock = NSLock()
 
     // All mutable state — access only via locked helpers
@@ -154,7 +154,7 @@ final class StreamingTranscriber: @unchecked Sendable {
                 try await Task.sleep(nanoseconds: 200_000_000)
             } catch {
                 if isRunning {
-                    logger.error("Streaming transcription error: \(error)")
+                    log.error("Streaming transcription error: \(error)")
                 }
                 break
             }

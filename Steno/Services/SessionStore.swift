@@ -7,7 +7,7 @@ final class SessionStore: ObservableObject {
     @Published var sessions: [SessionIndex.SessionEntry] = []
     @Published var currentSession: Session?
 
-    private let logger = Logger(subsystem: "com.kmganesh.steno", category: "SessionStore")
+    private let log = StenoLog.storage
     private let fileManager = FileManager.default
     private let encoder: JSONEncoder = {
         let e = JSONEncoder()
@@ -68,7 +68,7 @@ final class SessionStore: ObservableObject {
             let recovered = CrashRecovery.recoverSessions(in: base)
             if !recovered.isEmpty {
                 await MainActor.run {
-                    self.logger.info("Recovered \(recovered.count) interrupted sessions")
+                    self.log.info("Recovered \(recovered.count) interrupted sessions")
                     self.loadIndex() // Reload index to pick up status changes
                 }
             }
@@ -120,7 +120,7 @@ final class SessionStore: ObservableObject {
         do {
             try fileManager.createDirectory(at: folderURL, withIntermediateDirectories: true)
         } catch {
-            logger.error("Failed to create session folder: \(error)")
+            log.error("Failed to create session folder: \(error)")
         }
 
         // Write initial metadata
@@ -179,7 +179,7 @@ final class SessionStore: ObservableObject {
             let data = try encoder.encode(transcript)
             try data.write(to: url, options: .atomic)
         } catch {
-            logger.error("Failed to write live transcript: \(error)")
+            log.error("Failed to write live transcript: \(error)")
         }
     }
 
@@ -224,7 +224,7 @@ final class SessionStore: ObservableObject {
                 writeIndex()
             }
         } catch {
-            logger.error("Failed to write transcript: \(error)")
+            log.error("Failed to write transcript: \(error)")
         }
     }
 
@@ -238,7 +238,7 @@ final class SessionStore: ObservableObject {
             let data = try Data(contentsOf: url)
             return try decoder.decode(Transcript.self, from: data)
         } catch {
-            logger.error("Failed to load transcript: \(error)")
+            log.error("Failed to load transcript: \(error)")
             return nil
         }
     }
@@ -251,7 +251,7 @@ final class SessionStore: ObservableObject {
             let data = try encoder.encode(session)
             try data.write(to: url, options: .atomic)
         } catch {
-            logger.error("Failed to write metadata: \(error)")
+            log.error("Failed to write metadata: \(error)")
         }
     }
 
@@ -283,7 +283,7 @@ final class SessionStore: ObservableObject {
             let data = try encoder.encode(index)
             try data.write(to: url, options: .atomic)
         } catch {
-            logger.error("Failed to write sessions index: \(error)")
+            log.error("Failed to write sessions index: \(error)")
         }
     }
 
@@ -295,7 +295,7 @@ final class SessionStore: ObservableObject {
             let index = try decoder.decode(SessionIndex.self, from: data)
             sessions = index.sessions
         } catch {
-            logger.error("Failed to load sessions index: \(error)")
+            log.error("Failed to load sessions index: \(error)")
         }
     }
 
@@ -329,7 +329,7 @@ final class SessionStore: ObservableObject {
             do {
                 try fileManager.removeItem(at: folderURL)
             } catch {
-                logger.error("Failed to delete session folder: \(error)")
+                log.error("Failed to delete session folder: \(error)")
             }
         }
         sessions.removeAll { $0.id == id }
@@ -355,7 +355,7 @@ final class SessionStore: ObservableObject {
             updateIndex(session: session)
             return session
         } catch {
-            logger.error("Failed to import audio: \(error)")
+            log.error("Failed to import audio: \(error)")
             return nil
         }
     }

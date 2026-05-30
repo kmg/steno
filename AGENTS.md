@@ -123,6 +123,18 @@ Before shipping any view change, trace every user action through the full loop:
 
 The pattern: **trigger → state change → side effect → user feedback → error path.** Most bugs are missing feedback or missing error paths.
 
+## Logging
+
+All app code logs via `StenoLog.<subsystem>.<level>(message)`. The five subsystems are `audio`, `transcription`, `diarization`, `storage`, `app`. Each call writes to `os_log` AND to the in-app Debug tab.
+
+```swift
+StenoLog.audio.info("Recording started")
+StenoLog.transcription.warning("Model load slow: \(elapsed)s")
+StenoLog.storage.error("Session save failed: \(error)")
+```
+
+**Do not use bare `Logger(subsystem:category:)` in app code** — it bypasses the Debug tab. See [ADR-0007](docs/adr/0007-structured-logging-and-debug-tab.md).
+
 ## Thread Safety Rules
 
 Audio IO threads (mic callback, system audio IO proc) run outside any actor. Code on these threads must:
