@@ -21,18 +21,26 @@ jobs:
       # PostHog + Sentry keys plumbed into Info.plist. The keys are
       # public-by-design SDK keys (see docs/adr/0009). If a secret is
       # missing, the key falls back to empty and the SDK init no-ops.
-      # The `https:/$()/...` workaround keeps xcconfig's // comment
-      # parser from truncating the Sentry DSN URL.
+      #
+      # xcconfig's `//` comment parser truncates URLs containing `//`,
+      # so the Sentry DSN's `https://` needs `$()` inserted to break the
+      # comment match. Earlier attempts used a bash parameter expansion
+      # for this — that introduced literal `\\/` backslash-slashes into
+      # the final value (v0.2.18 build #44 shipped a broken DSN). Python's
+      # `str.replace` is unambiguous and avoids the escape confusion.
       - name: Write Steno.xcconfig
         env:
           POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
-          {
-            echo "POSTHOG_API_KEY = ${POSTHOG_API_KEY}"
-            # Split // with $() so xcconfig doesn't treat it as a comment
-            echo "SENTRY_DSN = ${SENTRY_DSN//\/\//\/\$()\/}"
-          } > Steno.xcconfig
+          python3 - << 'PYEOF'
+          import os
+          posthog = os.environ.get("POSTHOG_API_KEY", "")
+          sentry = os.environ.get("SENTRY_DSN", "").replace("//", "/$()/")
+          with open("Steno.xcconfig", "w") as f:
+              f.write(f"POSTHOG_API_KEY = {posthog}\n")
+              f.write(f"SENTRY_DSN = {sentry}\n")
+          PYEOF
 
       - name: Generate Xcode project
         run: xcodegen generate
