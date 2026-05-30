@@ -4,6 +4,14 @@ import os
 
 /// Captures microphone audio via AVAudioEngine.
 ///
+/// Instrumentation (see ADR-0012): counts tap-callback invocations and runs
+/// a "silent tap detector" timer that warns if no buffers arrive for >10s
+/// while capturing. The 2026-05-30 09:06 incident produced an empty WAV;
+/// `AudioFileWriter`'s counter (ADR-0011) would catch all-buffer-dropped
+/// scenarios, but if the tap callback never fires at all (the actual 09:06
+/// failure mode), the writer never sees buffers to drop. This detector
+/// catches that case at the source, in real time.
+///
 /// Thread safety: `bufferHandler` is called on the audio IO thread.
 /// `start`/`stop` are called from the main thread via RecordingPipeline.
 final class MicrophoneCapture: @unchecked Sendable {
@@ -18,6 +26,25 @@ final class MicrophoneCapture: @unchecked Sendable {
     /// to prevent use-after-free from concurrent Core Audio listener callbacks.
     private let restartQueue = DispatchQueue(label: "com.kmganesh.steno.mic-restart")
     private var pendingRestart: DispatchWorkItem?  // only accessed on restartQueue
+
+    // Instrumentation — all guarded by counterLock.
+    private let counterLock = NSLock()
+    private var buffersReceived: Int = 0
+    private var lastBufferAt: Date?
+    private var captureStartedAt: Date?
+
+    /// Silent-tap detector. Runs on the main run loop while capturing; warns
+    /// when the tap callback hasn't fired in >10s. Invalidated on stop().
+    private var silentTapTimer: Timer?
+    private let silentTapThreshold: TimeInterval = 10.0
+    private let silentTapCheckInterval: TimeInterval = 5.0
+
+    /// Snapshot of the tap-invocation counter, for tests and Debug-tab display.
+    var buffersReceivedCount: Int {
+        counterLock.lock()
+        defer { counterLock.unlock() }
+        return buffersReceived
+    }
 
     /// Stored handler for use with RecordingPipeline
     var bufferHandler: (@Sendable (AVAudioPCMBuffer) -> Void)?
@@ -70,7 +97,8 @@ final class MicrophoneCapture: @unchecked Sendable {
                     let inputNode = self.engine.inputNode
                     let format = getFormat(self.engine)
 
-                    inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, time in
+                    inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, time in
+                        self?.recordTapInvocation()
                         bufferHandler(buffer, time)
                     }
 
@@ -96,12 +124,71 @@ final class MicrophoneCapture: @unchecked Sendable {
             engine.prepare()
             try engine.start()
             isCapturing = true
+            resetInstrumentation()
             installInputDeviceListener()
+            startSilentTapTimer()
             log.info("Microphone capture started")
             return
         }
 
         throw CaptureError.invalidFormat
+    }
+
+    /// Called on every tap-callback invocation from the audio IO thread.
+    /// Lock-hold time is minimal — just two integer/Date writes.
+    private func recordTapInvocation() {
+        counterLock.lock()
+        buffersReceived += 1
+        lastBufferAt = Date()
+        counterLock.unlock()
+    }
+
+    /// Reset counters and start time. Called from start() after a successful engine start.
+    private func resetInstrumentation() {
+        counterLock.lock()
+        buffersReceived = 0
+        lastBufferAt = nil
+        captureStartedAt = Date()
+        counterLock.unlock()
+    }
+
+    /// Schedule the silent-tap detector. Runs on the main run loop; reads
+    /// counters under counterLock; emits a warning if the tap has been
+    /// silent for longer than silentTapThreshold while isCapturing.
+    private func startSilentTapTimer() {
+        silentTapTimer?.invalidate()
+        silentTapTimer = Timer.scheduledTimer(withTimeInterval: silentTapCheckInterval, repeats: true) { [weak self] _ in
+            self?.checkSilentTap()
+        }
+    }
+
+    private func stopSilentTapTimer() {
+        silentTapTimer?.invalidate()
+        silentTapTimer = nil
+    }
+
+    private func checkSilentTap() {
+        guard isCapturing else { return }
+
+        counterLock.lock()
+        let count = buffersReceived
+        let last = lastBufferAt
+        let started = captureStartedAt
+        counterLock.unlock()
+
+        guard let started = started else { return }
+
+        let now = Date()
+        let referenceTime = last ?? started
+        let gap = now.timeIntervalSince(referenceTime)
+
+        guard gap > silentTapThreshold else { return }
+
+        if count == 0 {
+            log.warning("Silent mic tap: zero buffers received since start (\(String(format: "%.1f", gap))s ago). Recording will be empty.")
+        } else {
+            log.warning("Silent mic tap: no buffers in \(String(format: "%.1f", gap))s (\(count) received total). Tap may have stalled.")
+        }
     }
 
     /// Restart mic capture after a device change.
@@ -127,12 +214,17 @@ final class MicrophoneCapture: @unchecked Sendable {
     }
 
     func stop() {
+        stopSilentTapTimer()
         removeInputDeviceListener()
         guard isCapturing else { return }
         removeTapSafely()
         engine.stop()
         isCapturing = false
-        log.info("Microphone capture stopped")
+
+        counterLock.lock()
+        let count = buffersReceived
+        counterLock.unlock()
+        log.info("Microphone capture stopped: \(count) buffers received")
     }
 
     private func removeTapSafely() {

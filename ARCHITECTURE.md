@@ -146,7 +146,7 @@ Rules:
 
 ```
 Steno/Audio/
-  MicrophoneCapture.swift    — AVAudioEngine mic input, installTap
+  MicrophoneCapture.swift    — AVAudioEngine mic input, installTap. Instrumented with tap-callback counter + main-loop silent-tap detector (warns when no buffers received in >10s). See ADR-0012.
   SystemAudioCapture.swift   — Core Audio Tap, aggregate device, IO proc
   AudioMixer.swift           — RMS ducking, stereo-to-mono, sample mixing
   AudioFileWriter.swift      — WAV/LPCM writer with instrumentation (frame counter, drop counter, ~10s heartbeat, finish-time empty-WAV error). NSLock-protected. See ADR-0011.
