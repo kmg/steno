@@ -62,12 +62,17 @@ final class SessionStore: ObservableObject {
         ensureBaseDirectory()
         loadIndex()
         // Listen for crash-recovery completion (posted from a detached Task at end of init).
+        // The queue is .main but Swift's strict concurrency in Xcode 16.2 doesn't
+        // statically know that, so we use MainActor.assumeIsolated to call the
+        // main-actor-isolated loadIndex() from the nonisolated closure.
         NotificationCenter.default.addObserver(
             forName: .stenoSessionsRecovered,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.loadIndex()
+            MainActor.assumeIsolated {
+                self?.loadIndex()
+            }
         }
         // Crash recovery + orphaned WAV scan run off the main thread.
         // Task.detached is required: SessionStore is instantiated from the
