@@ -50,6 +50,10 @@ final class UpdateChecker: ObservableObject {
             struct Release: Decodable {
                 let tag_name: String
                 let html_url: String
+
+                enum CodingKeys: String, CodingKey {
+                    case tag_name, html_url
+                }
             }
             let release = try JSONDecoder().decode(Release.self, from: data)
             let remote = release.tag_name.trimmingCharacters(in: CharacterSet(charactersIn: "v"))

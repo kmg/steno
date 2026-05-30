@@ -123,6 +123,20 @@ Before shipping any view change, trace every user action through the full loop:
 
 The pattern: **trigger → state change → side effect → user feedback → error path.** Most bugs are missing feedback or missing error paths.
 
+## Linter
+
+Custom linter at `tools/lint-steno.swift` enforces several rules mechanically. Run on the codebase:
+
+```bash
+./tools/lint-steno.swift Steno/
+```
+
+Or on one file. Exit code is `0` clean, `1` violations. Each violation includes a remediation hint Claude should act on.
+
+Rules: `max-file-loc` (500), `no-try-bang` (outside tests), `no-print` (outside tests — use `StenoLog`), `no-bare-logger` (use `StenoLog` outside `Steno/Services/Logging/`), `codable-explicit-coding-keys` (every `Codable` struct/class declares an explicit `CodingKeys`).
+
+When the linter blocks a write, read the `fix:` hint and apply it directly. See [ADR-0008](docs/adr/0008-custom-linter.md). When adding a new structural rule (e.g., from a new ADR), add the enforcement to the linter in the same commit.
+
 ## Logging
 
 All app code logs via `StenoLog.<subsystem>.<level>(message)`. The five subsystems are `audio`, `transcription`, `diarization`, `storage`, `app`. Each call writes to `os_log` AND to the in-app Debug tab.

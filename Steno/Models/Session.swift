@@ -9,6 +9,10 @@ struct Session: Codable, Identifiable {
     var status: Status
     var devices: Devices?
 
+    enum CodingKeys: String, CodingKey {
+        case id, name, startedAt, endedAt, durationSeconds, status, devices
+    }
+
     enum Status: String, Codable {
         case recording
         case complete
@@ -18,6 +22,10 @@ struct Session: Codable, Identifiable {
     struct Devices: Codable {
         var microphone: String?
         var systemAudio: String?
+
+        enum CodingKeys: String, CodingKey {
+            case microphone, systemAudio
+        }
     }
 
     var folderName: String { id }

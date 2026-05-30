@@ -10,6 +10,10 @@ struct Transcript: Codable {
     var speakers: [String: Speaker]?
     var segments: [Segment]
 
+    enum CodingKeys: String, CodingKey {
+        case version, created, durationSeconds, model, speakers, segments
+    }
+
     struct Segment: Codable, Identifiable {
         var id: UUID
         var segmentIndex: Int
@@ -19,6 +23,10 @@ struct Transcript: Codable {
         var confidence: Float
         var language: String?
         var speaker: String?
+
+        enum CodingKeys: String, CodingKey {
+            case id, segmentIndex, start, end, text, confidence, language, speaker
+        }
 
         init(segmentIndex: Int, start: Float, end: Float, text: String, confidence: Float, language: String? = nil, speaker: String? = nil) {
             self.id = UUID()

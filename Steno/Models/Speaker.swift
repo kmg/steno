@@ -5,6 +5,10 @@ struct Speaker: Codable, Identifiable, Hashable {
     var source: Source?
     var label: String    // Display name: "Speaker 1", "Speaker 2"
 
+    enum CodingKeys: String, CodingKey {
+        case id, source, label
+    }
+
     enum Source: String, Codable {
         case mlIdentification
     }
