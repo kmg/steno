@@ -7,9 +7,20 @@ struct SessionListView: View {
     @EnvironmentObject var diarizationManager: DiarizationManager
 
     @Binding var selectedSessionID: String?
+    var searchText: Binding<String>?
+
     @State private var renamingSessionID: String?
     @State private var renameText: String = ""
     @State private var importError: String?
+
+    private var filteredSessions: [SessionIndex.SessionEntry] {
+        guard let query = searchText?.wrappedValue.trimmingCharacters(in: .whitespaces),
+              !query.isEmpty else {
+            return sessionStore.sessions
+        }
+        let lower = query.lowercased()
+        return sessionStore.sessions.filter { $0.name.lowercased().contains(lower) }
+    }
 
     var body: some View {
         List(selection: $selectedSessionID) {
@@ -33,8 +44,8 @@ struct SessionListView: View {
                 .listRowBackground(Color.red.opacity(0.05))
             }
 
-            // Past sessions
-            ForEach(sessionStore.sessions) { session in
+            // Past sessions (filtered if a search query is active)
+            ForEach(filteredSessions) { session in
                 sessionRow(session)
                     .tag(session.id)
                     .contextMenu { contextMenu(for: session) }
@@ -54,6 +65,7 @@ struct SessionListView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .help("Session actions")
             }
         }
         .alert("Import Failed", isPresented: Binding(

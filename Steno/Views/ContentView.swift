@@ -10,6 +10,8 @@ struct ContentView: View {
     @State private var selectedSessionID: String?
     @State private var showConsentBanner = false
     @State private var showUpdatePopover = false
+    @State private var searchText = ""
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @AppStorage("showRecordingNotice") private var showRecordingNotice = true
 
     private var showRecordingError: Binding<Bool> {
@@ -20,12 +22,26 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            SessionListView(selectedSessionID: $selectedSessionID)
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            SessionListView(selectedSessionID: $selectedSessionID, searchText: $searchText)
         } detail: {
             SessionDetailView(selectedSessionID: $selectedSessionID)
         }
         .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
+        .searchable(text: $searchText, placement: .sidebar, prompt: "Search sessions")
+        .background {
+            // Hidden button wires Cmd+Ctrl+S to toggle the sidebar.
+            // Hidden because the NavigationSplitView toolbar already provides
+            // a clickable sidebar toggle; this just adds the standard macOS
+            // keyboard shortcut without duplicating the UI affordance.
+            Button("Toggle Sidebar") {
+                columnVisibility = (columnVisibility == .all) ? .detailOnly : .all
+            }
+            .keyboardShortcut("s", modifiers: [.command, .control])
+            .opacity(0)
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+        }
         .toolbar {
             ToolbarItemGroup(placement: .automatic) {
                 modelStatusView
@@ -125,6 +141,7 @@ struct ContentView: View {
                 .foregroundStyle(.blue)
                 .symbolRenderingMode(.hierarchical)
         }
+        .help("Steno \(update.version) available")
         .popover(isPresented: $showUpdatePopover, arrowEdge: .bottom) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Steno \(update.version) available")
@@ -194,6 +211,7 @@ struct ContentView: View {
         }
         .disabled(recordingManager.isStarting)
         .keyboardShortcut("r", modifiers: .command)
+        .help(recordingManager.isRecording ? "Stop recording (⌘R)" : "Start recording (⌘R)")
     }
 
     private func modelSizeLabel(_ model: String) -> String {

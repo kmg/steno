@@ -73,6 +73,17 @@ Single window with a sidebar of past sessions and a detail pane for the current/
 
 The Debug tab (Settings → Debug) shows live application events grouped by subsystem (audio, transcription, diarization, storage, app) — useful for diagnosing why a recording didn't behave as expected. Copy-to-clipboard for sharing diagnostic context.
 
+### Keyboard shortcuts
+
+| Shortcut | Action |
+|---|---|
+| ⌘R | Start / stop recording |
+| ⌘F | Search sessions (focus the sidebar search field) |
+| ⌘⇧C | Copy entire transcript |
+| ⌘⌃S | Toggle sidebar |
+| ⌘, | Settings |
+| ⌘Q | Quit |
+
 ## Privacy & Data
 
 - Zero network calls after initial model download. No analytics events, no crash reports, no usage telemetry are sent unless you explicitly opt in via Settings.

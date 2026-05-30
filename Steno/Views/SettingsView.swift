@@ -91,7 +91,7 @@ struct SettingsView: View {
 
             Section("Permissions") {
                 HStack {
-                    Label("Microphone", systemImage: "mic.fill")
+                    Label("Microphone", systemImage: "mic")
                     Spacer()
                     permissionBadge(granted: micPermission == .granted)
                     Button("Open Settings") {
@@ -101,7 +101,7 @@ struct SettingsView: View {
                 }
 
                 HStack {
-                    Label("System Audio", systemImage: "speaker.wave.2.fill")
+                    Label("System Audio", systemImage: "speaker.wave.2")
                     Spacer()
                     permissionBadge(granted: systemAudioGranted)
                     Button("Open Settings") {
