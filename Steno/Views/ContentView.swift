@@ -10,7 +10,6 @@ struct ContentView: View {
     @State private var selectedSessionID: String?
     @State private var showConsentBanner = false
     @State private var showUpdatePopover = false
-    @State private var searchText = ""
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @AppStorage("showRecordingNotice") private var showRecordingNotice = true
 
@@ -23,12 +22,11 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            SessionListView(selectedSessionID: $selectedSessionID, searchText: $searchText)
+            SessionListView(selectedSessionID: $selectedSessionID)
         } detail: {
             SessionDetailView(selectedSessionID: $selectedSessionID)
         }
         .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
-        .searchable(text: $searchText, placement: .sidebar, prompt: "Search sessions")
         .background {
             // Hidden button wires Cmd+Ctrl+S to toggle the sidebar.
             // Hidden because the NavigationSplitView toolbar already provides

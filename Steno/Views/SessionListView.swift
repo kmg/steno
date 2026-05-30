@@ -7,19 +7,21 @@ struct SessionListView: View {
     @EnvironmentObject var diarizationManager: DiarizationManager
 
     @Binding var selectedSessionID: String?
-    var searchText: Binding<String>?
 
     @State private var renamingSessionID: String?
     @State private var renameText: String = ""
     @State private var importError: String?
+    @State private var searchText: String = ""
+    @State private var transcriptCache: [String: String] = [:]
 
     private var filteredSessions: [SessionIndex.SessionEntry] {
-        guard let query = searchText?.wrappedValue.trimmingCharacters(in: .whitespaces),
-              !query.isEmpty else {
-            return sessionStore.sessions
+        let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !query.isEmpty else { return sessionStore.sessions }
+        return sessionStore.sessions.filter { session in
+            if session.name.lowercased().contains(query) { return true }
+            if let text = transcriptCache[session.id], text.contains(query) { return true }
+            return false
         }
-        let lower = query.lowercased()
-        return sessionStore.sessions.filter { $0.name.lowercased().contains(lower) }
     }
 
     var body: some View {
@@ -74,6 +76,30 @@ struct SessionListView: View {
         )) {} message: {
             Text(importError ?? "")
         }
+        .searchable(text: $searchText, prompt: "Search sessions and transcripts")
+        .task(id: sessionStore.sessions.count) {
+            // Load transcript texts in background for the content-search index.
+            // Re-runs whenever the session count changes (new recording, deletion).
+            await loadTranscriptCache()
+        }
+    }
+
+    private func loadTranscriptCache() async {
+        let sessions = sessionStore.sessions
+        let base = sessionStore.baseURL
+        let cache = await Task.detached { () -> [String: String] in
+            var result: [String: String] = [:]
+            for session in sessions {
+                let url = base.appendingPathComponent(session.path).appendingPathComponent("transcript.json")
+                guard let data = try? Data(contentsOf: url),
+                      let transcript = try? JSONDecoder().decode(Transcript.self, from: data)
+                else { continue }
+                let joined = transcript.segments.map(\.text).joined(separator: " ").lowercased()
+                result[session.id] = joined
+            }
+            return result
+        }.value
+        await MainActor.run { transcriptCache = cache }
     }
 
     // MARK: - Row

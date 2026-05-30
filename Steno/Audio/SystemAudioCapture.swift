@@ -20,6 +20,17 @@ final class SystemAudioCapture: @unchecked Sendable {
 
     var bufferHandler: (@Sendable (UnsafePointer<AudioBufferList>) -> Void)?
 
+    init() {
+        // Register the output-device-change listener ONCE per instance lifetime.
+        // Re-registering on every start/restart cycle leaks listeners — Swift-to-ObjC
+        // block bridging makes AudioObjectRemovePropertyListenerBlock unreliable
+        // (the bridged block instance passed at register time can differ from the
+        // stored block instance, so removal silently fails). v0.2.19 torture test
+        // showed listener counts growing 3 → 4 → 5 → 6 with each device transition.
+        // Fix: install once here, gate the body with isCapturing, remove in deinit.
+        installOutputDeviceListener()
+    }
+
     /// Start capturing all system audio.
     func start() throws {
         guard !isCapturing else { return }
@@ -127,15 +138,13 @@ final class SystemAudioCapture: @unchecked Sendable {
 
         isCapturing = true
         log.info("System audio capture started")
-
-        // Listen for default output device changes (e.g. switching to AirPods).
-        // The global tap may stop delivering or deliver from the old device graph.
-        // On change: tear down and recreate the tap.
-        installOutputDeviceListener()
+        // Output-device-change listener is registered once in init() — see comment there.
     }
 
     func stop() {
-        removeOutputDeviceListener()
+        // Output-device-change listener is NOT removed here — it stays registered for
+        // the instance lifetime (cleaned up in deinit). The listener body gates on
+        // isCapturing so it only schedules a restart when actually recording.
         guard isCapturing else { return }
 
         if let procID = ioProcID {
@@ -182,6 +191,10 @@ final class SystemAudioCapture: @unchecked Sendable {
 
         let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             guard let self else { return }
+            // Gate on isCapturing — when not recording, we still receive system
+            // notifications but ignore them. This avoids noisy logs and prevents
+            // useless restart attempts.
+            guard self.isCapturing else { return }
             self.log.info("Default output device changed")
             self.restartQueue.async { [weak self] in
                 guard let self else { return }
@@ -225,6 +238,7 @@ final class SystemAudioCapture: @unchecked Sendable {
 
     deinit {
         stop()
+        removeOutputDeviceListener()
     }
 
     // MARK: - Property addresses

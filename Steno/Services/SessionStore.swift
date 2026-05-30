@@ -61,22 +61,49 @@ final class SessionStore: ObservableObject {
     init() {
         ensureBaseDirectory()
         loadIndex()
-        // Crash recovery + orphaned WAV scan — run off the main thread.
-        // Does not block app launch or interfere with recording.
+        // Listen for crash-recovery completion (posted from a detached Task at end of init).
+        NotificationCenter.default.addObserver(
+            forName: .stenoSessionsRecovered,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.loadIndex()
+        }
+        // Crash recovery + orphaned WAV scan run off the main thread.
+        // Task.detached is required: SessionStore is instantiated from the
+        // main actor, so a plain `Task { }` would INHERIT the main actor
+        // and block on FileHandle.read inside CrashRecovery.repairWAVHeader.
+        // Sentry caught this as an App Hang in v0.2.19 — fix landed v0.2.22.
         let base = baseURL
-        Task {
+        Task.detached {
             let recovered = CrashRecovery.recoverSessions(in: base)
             if !recovered.isEmpty {
-                await MainActor.run {
-                    self.log.info("Recovered \(recovered.count) interrupted sessions")
-                    self.loadIndex() // Reload index to pick up status changes
-                }
+                await Self.notifyRecovered(count: recovered.count)
             }
             // Convert any orphaned .wav files that lack a corresponding .m4a.
             // Covers: app quit during conversion, conversion failure, etc.
             await Self.convertOrphanedWAVs(in: base)
         }
     }
+
+    /// Helper that hops to the main actor to log + reload index after recovery.
+    /// Split out so the detached Task closure doesn't need to capture `self`
+    /// (which would cross the actor boundary and trip Swift 6 sendability checks).
+    @MainActor
+    private static func notifyRecovered(count: Int) {
+        StenoLog.storage.info("Recovered \(count) interrupted sessions")
+        NotificationCenter.default.post(name: .stenoSessionsRecovered, object: nil)
+    }
+
+}
+
+extension Notification.Name {
+    /// Posted on the main queue after CrashRecovery finishes processing
+    /// interrupted sessions. SessionStore observes this and reloads its index.
+    static let stenoSessionsRecovered = Notification.Name("com.kmganesh.steno.sessionsRecovered")
+}
+
+extension SessionStore {
 
     /// Scans session folders for .wav files without a corresponding .m4a
     /// and converts them in background. Fire-and-forget, non-blocking.

@@ -46,6 +46,13 @@ final class MicrophoneCapture: @unchecked Sendable {
         return buffersReceived
     }
 
+    init() {
+        // Register the input-device-change listener ONCE per instance lifetime.
+        // Re-registering on every start/restart cycle leaks listeners — see
+        // SystemAudioCapture's init() for the full explanation.
+        installInputDeviceListener()
+    }
+
     /// Stored handler for use with RecordingPipeline
     var bufferHandler: (@Sendable (AVAudioPCMBuffer) -> Void)?
 
@@ -125,7 +132,7 @@ final class MicrophoneCapture: @unchecked Sendable {
             try engine.start()
             isCapturing = true
             resetInstrumentation()
-            installInputDeviceListener()
+            // Input-device-change listener is registered once in init() — see comment there.
             startSilentTapTimer()
             log.info("Microphone capture started")
             return
@@ -215,7 +222,9 @@ final class MicrophoneCapture: @unchecked Sendable {
 
     func stop() {
         stopSilentTapTimer()
-        removeInputDeviceListener()
+        // Input-device-change listener is NOT removed here — it stays registered for
+        // the instance lifetime (cleaned up in deinit). The listener body gates on
+        // isCapturing so it only schedules a restart when actually recording.
         guard isCapturing else { return }
         removeTapSafely()
         engine.stop()
@@ -227,6 +236,11 @@ final class MicrophoneCapture: @unchecked Sendable {
         log.info("Microphone capture stopped: \(count) buffers received")
     }
 
+    deinit {
+        stop()
+        removeInputDeviceListener()
+    }
+
     private func removeTapSafely() {
         engine.inputNode.removeTap(onBus: 0)
     }
@@ -234,7 +248,6 @@ final class MicrophoneCapture: @unchecked Sendable {
     // MARK: - Input device change listener
 
     private func installInputDeviceListener() {
-        removeInputDeviceListener()
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultInputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -243,6 +256,9 @@ final class MicrophoneCapture: @unchecked Sendable {
 
         let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             guard let self else { return }
+            // Gate on isCapturing — when not recording, ignore the notification.
+            // This avoids noisy logs and prevents useless restart attempts.
+            guard self.isCapturing else { return }
             self.log.info("Default input device changed")
             // Serialize on restartQueue. The listener callback runs on Core Audio's
             // thread — all mutable state access must happen on our queue.
