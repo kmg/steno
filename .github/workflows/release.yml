@@ -63,6 +63,26 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             build
 
+      # Upload dSYMs so Sentry can symbolicate in-app Swift frames in crash
+      # reports. Without this, frames inside Steno.dylib show as <redacted>
+      # and you can't tell where in the app a crash originated — only the
+      # framework-level shape. Required for any meaningful crash triage.
+      # Skips gracefully if SENTRY_AUTH_TOKEN isn't set (contributors, forks).
+      - name: Upload dSYMs to Sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        run: |
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then
+            echo "SENTRY_AUTH_TOKEN not set; skipping dSYM upload."
+            exit 0
+          fi
+          curl -sL https://sentry.io/get-cli/ | sh
+          sentry-cli debug-files upload \
+            --include-sources \
+            build/Build/Products/Release/
+
       - name: Import certificate
         env:
           CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_CERTIFICATE }}
